@@ -35,24 +35,33 @@ import pybreaker
 import zeep
 
 from jormungandr import cache, app
-from jormungandr.parking_space_availability import AbstractParkingPlacesProvider
-from jormungandr.parking_space_availability.bss.stands import Stands
+from jormungandr.parking_space_availability.bss.common_bss_provider import CommonBssProvider, BssProxyError
+from jormungandr.parking_space_availability.bss.stands import Stands, StandsStatus
 from jormungandr.ptref import FeedPublisher
 
 DEFAULT_ATOS_FEED_PUBLISHER = None
 
 
-class AtosProvider(AbstractParkingPlacesProvider):
-
-    def __init__(self, id_ao, network, url, operators={'keolis'}, timeout=5,
-                 feed_publisher=DEFAULT_ATOS_FEED_PUBLISHER, **kwargs):
+class AtosProvider(CommonBssProvider):
+    def __init__(
+        self,
+        id_ao,
+        network,
+        url,
+        operators={'keolis'},
+        timeout=5,
+        feed_publisher=DEFAULT_ATOS_FEED_PUBLISHER,
+        **kwargs
+    ):
         self.id_ao = id_ao
         self.network = network.lower()
         self.WS_URL = url
         self.operators = [o.lower() for o in operators]
         self.timeout = timeout
         self._client = None
-        self.breaker = pybreaker.CircuitBreaker(fail_max=kwargs.get('fail_max', 5), reset_timeout=kwargs.get('reset_timeout', 120))
+        self.breaker = pybreaker.CircuitBreaker(
+            fail_max=kwargs.get('fail_max', 5), reset_timeout=kwargs.get('reset_timeout', 120)
+        )
         self._feed_publisher = FeedPublisher(**feed_publisher) if feed_publisher else None
 
     def __repr__(self):
@@ -60,35 +69,43 @@ class AtosProvider(AbstractParkingPlacesProvider):
 
     def support_poi(self, poi):
         properties = poi.get('properties', {})
-        return properties.get('operator', '').lower() in self.operators and \
-               properties.get('network', '').lower() == self.network
+        return (
+            properties.get('operator', '').lower() in self.operators
+            and properties.get('network', '').lower() == self.network
+        )
 
-    def get_informations(self, poi):
+    def _get_informations(self, poi):
         logging.debug('building stands')
         try:
             all_stands = self.breaker.call(self._get_all_stands)
             ref = poi.get('properties', {}).get('ref')
             if not ref:
-                return Stands(0, 0, 'UNAVAILABLE')
+                return Stands(0, 0, StandsStatus.unavailable)
             stands = all_stands.get(ref.lstrip('0'))
             if stands:
                 if stands.status != 'open':
                     stands.available_bikes = 0
                     stands.available_places = 0
                     stands.total_stands = 0
+
                 return stands
         except:
             logging.getLogger(__name__).exception('transport error during call to %s bss provider', self.id_ao)
 
-        return Stands(0, 0, 'UNAVAILABLE')
+        return Stands(0, 0, StandsStatus.unavailable)
 
-    @cache.memoize(app.config['CACHE_CONFIGURATION'].get('TIMEOUT_ATOS', 30))
+    @cache.memoize(app.config.get(str('CACHE_CONFIGURATION'), {}).get(str('TIMEOUT_ATOS'), 30))
     def _get_all_stands(self):
         with self._get_client() as client:
             all_stands = client.service.getSummaryInformationTerminals(self.id_ao)
-            return {stands.libelle: Stands(stands.nbPlacesDispo, stands.nbVelosDispo,
-                                           'OPEN' if stands.etatConnexion == 'CONNECTEE' else 'UNAVAILABLE')
-                    for stands in all_stands}
+            return {
+                stands.libelle: Stands(
+                    stands.nbPlacesDispo,
+                    stands.nbVelosDispo,
+                    StandsStatus.open if stands.etatConnexion == 'CONNECTEE' else StandsStatus.unavailable,
+                )
+                for stands in all_stands
+            }
 
     @contextmanager
     def _get_client(self):

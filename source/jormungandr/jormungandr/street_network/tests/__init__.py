@@ -27,3 +27,4 @@
 # https://groups.google.com/d/forum/navitia
 # www.navitia.io
 
+from streetnetwork_test_utils import MockKraken

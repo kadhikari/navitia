@@ -38,35 +38,49 @@ www.navitia.io
 
 #include "type/type.pb.h"
 
-#if ENABLE_PROMETHEUS
 #include <prometheus/exposer.h>
 #include <prometheus/counter.h>
+#include <prometheus/gauge.h>
 
-//forward declare
-namespace prometheus{
+// forward declare
+namespace prometheus {
 class Registry;
 class Counter;
 class Histogram;
-}
-#endif
+}  // namespace prometheus
 
 namespace navitia {
-class Metrics: boost::noncopyable {
 
-// This stub is for retro compatibility
-#if ENABLE_PROMETHEUS
-    protected:
-        std::unique_ptr<prometheus::Exposer> exposer;
-        std::shared_ptr<prometheus::Registry> registry;
-        std::map<pbnavitia::API, prometheus::Histogram*> request_histogram;
-    public:
-        Metrics(const boost::optional<std::string>& endpoint, const std::string& coverage);
-        void observe_api(pbnavitia::API api, float duration) const;
-#else
-    public:
-        Metrics(const boost::optional<std::string>&, const std::string&) {}
-        void observe_api(pbnavitia::API, float) const {}
-#endif
+class InFlightGuard {
+    prometheus::Gauge* gauge;
+
+public:
+    explicit InFlightGuard(prometheus::Gauge* gauge);
+    InFlightGuard(InFlightGuard& other) = delete;
+    InFlightGuard(InFlightGuard&& other);
+    void operator=(InFlightGuard& other) = delete;
+    void operator=(InFlightGuard&& other);
+    ~InFlightGuard();
 };
 
-}
+class Metrics : boost::noncopyable {
+protected:
+    std::unique_ptr<prometheus::Exposer> exposer;
+    std::shared_ptr<prometheus::Registry> registry;
+    std::map<pbnavitia::API, prometheus::Histogram*> request_histogram;
+    prometheus::Gauge* in_flight;
+    prometheus::Histogram* data_loading_histogram;
+    prometheus::Histogram* data_cloning_histogram;
+    prometheus::Histogram* handle_rt_histogram;
+
+public:
+    Metrics(const boost::optional<std::string>& endpoint, const std::string& coverage);
+    void observe_api(pbnavitia::API api, double duration) const;
+    InFlightGuard start_in_flight() const;
+
+    void observe_data_loading(double duration) const;
+    void observe_data_cloning(double duration) const;
+    void observe_handle_rt(double duration) const;
+};
+
+}  // namespace navitia

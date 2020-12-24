@@ -1,28 +1,28 @@
 /* Copyright © 2001-2014, Canal TP and/or its affiliates. All rights reserved.
-  
+
 This file is part of Navitia,
     the software to build cool stuff with public transport.
- 
+
 Hope you'll enjoy and contribute to this project,
     powered by Canal TP (www.canaltp.fr).
 Help us simplify mobility and open public transport:
     a non ending quest to the responsive locomotion way of traveling!
-  
+
 LICENCE: This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
-   
+
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Affero General Public License for more details.
-   
+
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
-  
+
 Stay tuned using
-twitter @navitia 
+twitter @navitia
 IRC #navitia on freenode
 https://groups.google.com/d/forum/navitia
 www.navitia.io
@@ -56,16 +56,17 @@ static boost::gregorian::date date(std::string str) {
 }
 
 struct logger_initialized {
-    logger_initialized()   { init_logger(); }
+    logger_initialized() { navitia::init_logger(); }
 };
-BOOST_GLOBAL_FIXTURE( logger_initialized );
+BOOST_GLOBAL_FIXTURE(logger_initialized);
 
 struct calendar_fixture {
     ed::builder b;
     calendar_fixture() : b("20140301") {
-
-        b.vj("line:A", "1", "", true, "VJA")("stop1", 10 * 3600, 10 * 3600 + 10 * 60)("stop2", 12 * 3600, 12 * 3600 + 10 * 60);
-        b.vj("line:B", "1", "", true, "VJB")("stop11", 11 * 3600, 11 * 3600 + 10 * 60)("stop22", 14 * 3600, 14 * 3600 + 10 * 60);
+        b.vj("line:A", "1", "", true, "VJA")("stop1", 10 * 3600, 10 * 3600 + 10 * 60)("stop2", 12 * 3600,
+                                                                                      12 * 3600 + 10 * 60);
+        b.vj("line:B", "1", "", true, "VJB")("stop11", 11 * 3600, 11 * 3600 + 10 * 60)("stop22", 14 * 3600,
+                                                                                       14 * 3600 + 10 * 60);
         b.data->build_uri();
 
         auto calA = new navitia::type::Calendar(b.data->meta->production_date.begin());
@@ -83,7 +84,7 @@ struct calendar_fixture {
         calB->week_pattern = std::bitset<7>{"0000011"};
         b.data->pt_data->calendars.push_back(calB);
 
-        //both calendars are associated to the line
+        // both calendars are associated to the line
         b.lines["line:A"]->calendar_list.push_back(calA);
         b.lines["line:B"]->calendar_list.push_back(calB);
 
@@ -96,8 +97,7 @@ struct calendar_fixture {
         => Result 2 calendars
 */
 BOOST_FIXTURE_TEST_CASE(test_count_calendar, calendar_fixture) {
-
-    auto * data_ptr = b.data.get();
+    auto* data_ptr = b.data.get();
     navitia::PbCreator pb_creator(data_ptr, boost::gregorian::not_a_date_time, null_time_period);
     navitia::calendar::calendars(pb_creator, *(b.data), "", "", 1, 10, 0, "", {});
     pbnavitia::Response resp = pb_creator.get_response();
@@ -110,8 +110,7 @@ BOOST_FIXTURE_TEST_CASE(test_count_calendar, calendar_fixture) {
 
   */
 BOOST_FIXTURE_TEST_CASE(test_forbidden_uris, calendar_fixture) {
-
-    auto * data_ptr = b.data.get();
+    auto* data_ptr = b.data.get();
     navitia::PbCreator pb_creator(data_ptr, boost::gregorian::not_a_date_time, null_time_period);
     navitia::calendar::calendars(pb_creator, *(b.data), "", "", 1, 10, 0, "", {"line:B"});
     pbnavitia::Response resp = pb_creator.get_response();
@@ -125,8 +124,7 @@ BOOST_FIXTURE_TEST_CASE(test_forbidden_uris, calendar_fixture) {
         => Result 1 calendar : calA
 */
 BOOST_FIXTURE_TEST_CASE(test_filter, calendar_fixture) {
-
-    auto * data_ptr = b.data.get();
+    auto* data_ptr = b.data.get();
     navitia::PbCreator pb_creator(data_ptr, boost::gregorian::not_a_date_time, null_time_period);
     navitia::calendar::calendars(pb_creator, *(b.data), "", "", 1, 10, 0, "line.uri=line:A", {});
     pbnavitia::Response resp = pb_creator.get_response();
@@ -140,8 +138,7 @@ BOOST_FIXTURE_TEST_CASE(test_filter, calendar_fixture) {
         => Result No solution
   */
 BOOST_FIXTURE_TEST_CASE(test_filter_period_no_solution, calendar_fixture) {
-
-    auto * data_ptr = b.data.get();
+    auto* data_ptr = b.data.get();
     navitia::PbCreator pb_creator(data_ptr, boost::gregorian::not_a_date_time, null_time_period);
     navitia::calendar::calendars(pb_creator, *(b.data), "20140201", "20140210", 1, 10, 0, "", {});
     pbnavitia::Response resp = pb_creator.get_response();
@@ -154,8 +151,7 @@ BOOST_FIXTURE_TEST_CASE(test_filter_period_no_solution, calendar_fixture) {
 
 // Response calA
 BOOST_FIXTURE_TEST_CASE(test_filter_period_1, calendar_fixture) {
-
-    auto * data_ptr = b.data.get();
+    auto* data_ptr = b.data.get();
     navitia::PbCreator pb_creator(data_ptr, boost::gregorian::not_a_date_time, null_time_period);
     navitia::calendar::calendars(pb_creator, *(b.data), "20140302", "20140303", 1, 10, 0, "", {});
     pbnavitia::Response resp = pb_creator.get_response();
@@ -171,8 +167,7 @@ BOOST_FIXTURE_TEST_CASE(test_filter_period_1, calendar_fixture) {
   */
 // Response calB
 BOOST_FIXTURE_TEST_CASE(test_filter_period_2, calendar_fixture) {
-
-    auto * data_ptr = b.data.get();
+    auto* data_ptr = b.data.get();
     navitia::PbCreator pb_creator(data_ptr, boost::gregorian::not_a_date_time, null_time_period);
     navitia::calendar::calendars(pb_creator, *(b.data), "20140307", "20140308", 1, 10, 0, "", {});
     pbnavitia::Response resp = pb_creator.get_response();
@@ -187,8 +182,7 @@ BOOST_FIXTURE_TEST_CASE(test_filter_period_2, calendar_fixture) {
   */
 // Response calA et calB
 BOOST_FIXTURE_TEST_CASE(test_filter_period_3, calendar_fixture) {
-
-    auto * data_ptr = b.data.get();
+    auto* data_ptr = b.data.get();
     navitia::PbCreator pb_creator(data_ptr, boost::gregorian::not_a_date_time, null_time_period);
     navitia::calendar::calendars(pb_creator, *(b.data), "20140312", "20140313", 1, 10, 0, "", {});
     pbnavitia::Response resp = pb_creator.get_response();
@@ -207,8 +201,7 @@ BOOST_FIXTURE_TEST_CASE(test_filter_period_3, calendar_fixture) {
 */
 // Response calB
 BOOST_FIXTURE_TEST_CASE(test_filter_period_4, calendar_fixture) {
-
-    auto * data_ptr = b.data.get();
+    auto* data_ptr = b.data.get();
     navitia::PbCreator pb_creator(data_ptr, boost::gregorian::not_a_date_time, null_time_period);
     navitia::calendar::calendars(pb_creator, *(b.data), "20140322", "20140324", 1, 10, 0, "", {});
     pbnavitia::Response resp = pb_creator.get_response();
@@ -224,8 +217,7 @@ BOOST_FIXTURE_TEST_CASE(test_filter_period_4, calendar_fixture) {
   */
 // Response calA
 BOOST_FIXTURE_TEST_CASE(test_filter_period_5, calendar_fixture) {
-
-    auto * data_ptr = b.data.get();
+    auto* data_ptr = b.data.get();
     navitia::PbCreator pb_creator(data_ptr, boost::gregorian::not_a_date_time, null_time_period);
     navitia::calendar::calendars(pb_creator, *(b.data), "20140301", "20140301", 1, 10, 0, "", {});
     pbnavitia::Response resp = pb_creator.get_response();
@@ -237,40 +229,40 @@ BOOST_FIXTURE_TEST_CASE(test_filter_period_5, calendar_fixture) {
 
 // Response Error
 BOOST_FIXTURE_TEST_CASE(test_parse_start_date, calendar_fixture) {
-
-    auto * data_ptr = b.data.get();
+    auto* data_ptr = b.data.get();
     navitia::PbCreator pb_creator(data_ptr, boost::gregorian::not_a_date_time, null_time_period);
     navitia::calendar::calendars(pb_creator, *(b.data), "201403AA", "20140301", 1, 10, 0, "", {});
     pbnavitia::Response resp = pb_creator.get_response();
-    BOOST_REQUIRE_EQUAL(resp.error().message(), "Unable to parse start_date, bad lexical cast: source type value could not be interpreted as target");
+    BOOST_REQUIRE_EQUAL(
+        resp.error().message(),
+        "Unable to parse start_date, bad lexical cast: source type value could not be interpreted as target");
 }
 
 // Response Error
 BOOST_FIXTURE_TEST_CASE(test_parse_end_date, calendar_fixture) {
-
-    auto * data_ptr = b.data.get();
+    auto* data_ptr = b.data.get();
     navitia::PbCreator pb_creator(data_ptr, boost::gregorian::not_a_date_time, null_time_period);
     navitia::calendar::calendars(pb_creator, *(b.data), "20140301", "201403AA", 1, 10, 0, "", {});
     pbnavitia::Response resp = pb_creator.get_response();
-    BOOST_REQUIRE_EQUAL(resp.error().message(), "Unable to parse end_date, bad lexical cast: source type value could not be interpreted as target");
+    BOOST_REQUIRE_EQUAL(
+        resp.error().message(),
+        "Unable to parse end_date, bad lexical cast: source type value could not be interpreted as target");
 }
 
 // Response Error
 BOOST_FIXTURE_TEST_CASE(test_parse_start_end_date, calendar_fixture) {
-
-    auto * data_ptr = b.data.get();
+    auto* data_ptr = b.data.get();
     navitia::PbCreator pb_creator(data_ptr, boost::gregorian::not_a_date_time, null_time_period);
     navitia::calendar::calendars(pb_creator, *(b.data), "0000", "1111", 1, 10, 0, "", {});
     pbnavitia::Response resp = pb_creator.get_response();
     BOOST_REQUIRE(resp.error().message() == "Unable to parse start_date, Day of month value is out of range 1..31"
                   || resp.error().message() == "Unable to parse start_date, Year is out of valid range: 1400..10000");
-    //either are valid error (it seems that the order of the parse depends on the compiler)
+    // either are valid error (it seems that the order of the parse depends on the compiler)
 }
 
 // Response Error
 BOOST_FIXTURE_TEST_CASE(test_ptref_error, calendar_fixture) {
-
-    auto * data_ptr = b.data.get();
+    auto* data_ptr = b.data.get();
     navitia::PbCreator pb_creator(data_ptr, boost::gregorian::not_a_date_time, null_time_period);
     navitia::calendar::calendars(pb_creator, *(b.data), "", "", 1, 10, 0, "line:A", {});
     pbnavitia::Response resp = pb_creator.get_response();

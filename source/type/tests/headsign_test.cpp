@@ -42,20 +42,20 @@ www.navitia.io
 #include <boost/archive/text_oarchive.hpp>
 #include <string>
 #include <type_traits>
-
+#include "utils/logger.h"
 
 struct logger_initialized {
-    logger_initialized()   { init_logger(); }
+    logger_initialized() { navitia::init_logger(); }
 };
-BOOST_GLOBAL_FIXTURE( logger_initialized );
+BOOST_GLOBAL_FIXTURE(logger_initialized);
 
 namespace nt = navitia::type;
 
 struct HeadsignFixture {
     ed::builder b;
     HeadsignFixture() : b("20120614") {
-        b.vj("A").uri("A1").meta_vj("metaVJA").vp("01")("stop00", 8000)("stop01", 8100);
-        b.vj("A").uri("A2").meta_vj("metaVJA").vp("10")("stop10", 8000)("stop11", 8100)("stop12", 8200);
+        b.vj("A").name("A1").meta_vj("metaVJA").vp("01")("stop00", 8000)("stop01", 8100);
+        b.vj("A").name("A2").meta_vj("metaVJA").vp("10")("stop10", 8000)("stop11", 8100)("stop12", 8200);
         b.vj("C")("stop20", 8000)("stop21", 8100)("stop22", 8200);
         b.vj("D")("stop30", 8000);
         b.vj("E")("stop40", 8000);
@@ -109,18 +109,21 @@ BOOST_FIXTURE_TEST_CASE(headsign_handler_functionnal_test, HeadsignFixture) {
     BOOST_CHECK(navitia::contains(headsign_handler.get_vj_from_headsign(vj_vec[4]->name), vj_vec[4]));
 }
 
-struct HeadsignHandlerTest: nt::HeadsignHandler {
+struct HeadsignHandlerTest : nt::HeadsignHandler {
     const std::unordered_map<const nt::VehicleJourney*, boost::container::flat_map<uint16_t, std::string>>&
-    get_headsign_changes() const {return headsign_changes;}
-    const std::unordered_map<std::string, std::unordered_set<const nt::MetaVehicleJourney*>>&
-    get_headsign_mvj() const {return headsign_mvj;}
+    get_headsign_changes() const {
+        return headsign_changes;
+    }
+    const std::unordered_map<std::string, std::unordered_set<const nt::MetaVehicleJourney*>>& get_headsign_mvj() const {
+        return headsign_mvj;
+    }
 };
 
 BOOST_FIXTURE_TEST_CASE(headsign_handler_internal_test, HeadsignFixture) {
     HeadsignHandlerTest headsign_handler;
     auto& vj_vec = b.data->pt_data->vehicle_journeys;
     // done for the "actual" handler in build helper but not on test handler
-    for (const auto& vj: vj_vec) {
+    for (const auto& vj : vj_vec) {
         headsign_handler.change_name_and_register_as_headsign(*vj, vj->name);
     }
 

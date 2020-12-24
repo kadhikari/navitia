@@ -237,6 +237,7 @@ Here is the valid id list:
 -   physical_mode:RailShuttle
 -   physical_mode:RapidTransit
 -   physical_mode:Shuttle
+-   physical_mode:SuspendedCableCar
 -   physical_mode:Taxi
 -   physical_mode:Train
 -   physical_mode:Tramway
@@ -347,7 +348,7 @@ A container containing either a [network](#network), [commercial_mode](#commerci
 Real time and disruption objects
 --------------------------------
 
-### Disruption
+### <a name="disruption"></a>Disruption
 
 ``` json
 {
@@ -386,10 +387,13 @@ Real time and disruption objects
 |severity      | [severity](#severity)          |gives some categorization element
 |application_periods |array of [period](#period)      |dates where the current disruption is active
 |messages            |array of [message](#message)    |texts to provide to the traveler
-|updated_at          |[iso-date-time](#iso-date-time) |date_time of last modifications 
+|updated_at          |[iso-date-time](#iso-date-time) |date_time of last modifications
 |impacted_objects    |array of [impacted_object](#impacted_object) |The list of public transport objects which are affected by the disruption
 |cause               |string                   |why is there such a disruption?
 |category            |string                   |The category of the disruption, such as "construction works" or "incident"
+|contributor         |string                   |The source from which Navitia received the disruption
+|uri                 |string                   |deprecated
+|disruption_uri      |string                   |deprecated
 
 
 ### Impacted_object
@@ -556,11 +560,22 @@ $ curl 'https://api.navitia.io/v1/coverage/sandbox/poi_types' -H 'Authorization:
 
 `/poi_types` lists groups of point of interest. You will find classifications as theater, offices or bicycle rental station for example.
 
- 
+
 |Field|Type|Description|
 |-----|----|-----------|
 |id|string|Identifier of the poi type|
 |name|string|Name of the poi type|
+
+### Stands
+
+A description of the number of stands/places and vehicles available at a bike sharing station.
+
+|Field           |Type|Description                                                                  |
+|----------------|----|-----------------------------------------------------------------------------|
+|available_places|int |Number of places where one can park                                          |
+|available_bikes |int |Number of bikes available                                                    |
+|total_stands    |int |Total number of stands (occupied or not, with or without special equipment)  |
+|status          |enum|Information about the station itself:<ul><li>`unavailable`: Navitia is not able to obtain information about the station</li><li>`open`: The station is open</li><li>`closed`: The station is closed</li></ul>|
 
 ### <a name="poi"></a>Poi
 ``` shell
@@ -571,19 +586,20 @@ $ curl 'https://api.navitia.io/v1/coverage/sandbox/pois' -H 'Authorization: 3b03
 $ curl 'https://api.navitia.io/v1/coverage/sandbox/coords/2.377310;48.847002/pois' -H 'Authorization: 3b036afe-0110-4202-b9ed-99718476c2e0'
 
 #very smart request
-#combining filters to get some specific POIs, as bicycle rental stations, 
+#combining filters to get some specific POIs, as bicycle rental stations,
 #nearby a coordinate
 $ curl 'https://api.navitia.io/v1/coverage/sandbox/poi_types/poi_type:amenity:bicycle_rental/coords/2.377310;48.847002/pois' -H 'Authorization: 3b036afe-0110-4202-b9ed-99718476c2e0'
 ```
 
 Poi = Point Of Interest
 
-|Field|Type|Description|
-|-----|----|-----------|
-|id|string|Identifier of the poi|
-|name|string|Name of the poi|
-|label|string|Label of the poi. The name is directly taken from the data whereas the label is something we compute for better traveler information. If you don't know what to display, display the label.|
-|poi_type|[poi_type](#poi-type)|Type of the poi|
+|Field   |Type                 |Description                                                         |
+|--------|---------------------|--------------------------------------------------------------------|
+|id      |string               |Identifier of the poi                                               |
+|name    |string               |Name of the poi                                                     |
+|label   |string               |Label of the poi. The name is directly taken from the data whereas the label is something we compute for better traveler information. If you don't know what to display, display the label.|
+|poi_type|[poi_type](#poi-type)|Type of the poi                                                     |
+|stands  |[stands](#stands)    |Information on the spots available, for BSS stations               |
 
 ### Address
 
@@ -610,6 +626,94 @@ Poi = Point Of Interest
 Cities are mainly on the 8 level, dependant on the country
 (<http://wiki.openstreetmap.org/wiki/Tag:boundary%3Dadministrative>)
 
+
+### Equipment-reports
+
+```json
+"equipment_reports": [
+    {
+        "line": {...},
+        "stop_area_equipments": [...]
+    },
+    ...
+]
+```
+
+A list of object that maps each lines with its associated stop area equipments report.
+
+|Field|Type|Description|
+|-----|----|-----------|
+|line|[line](#line)|The line to which equipments are associated |
+|stop_area_equipments|[stop-area-equipments](#stop-area-equipments)|A list of objects that describes equipments for each stop area |
+
+
+### Stop-area-equipments
+
+```json
+"stop_area_equipments": [
+    {
+        "equipment_details": [...],
+        "stop_area": {...},
+    },
+    ...
+]
+```
+A list of objects that maps equipments details for each stop area.
+
+|Field|Type|Description|
+|-----|----|-----------|
+|equipment_details|[equipment-details](#equipment-details)|The equipment details associated with the stop area|
+|stop_area|[stop-area](#stop-area)|The stop area to which the `equipments_details` is associated |
+
+
+### Equipment-details
+```json
+"equipment_details": [
+    {
+        "current_availability": {...},
+        "embedded_type": "escalator",
+        "id": "2702",
+        "name": "Escalator 2702, for platform 3",
+    },
+    ...
+]
+```
+|Field|Type|Occurrence|Description|
+|-----|----|--------|-----------|
+current_availability|[current-availability](#current-availability)|always| Describes equipments information like: status, name, id etc...
+embedded_type|string|always|Define the equipment type: `"escalator"`, `"elevator"`
+id|string|always|The equipment's unique identifier
+name|string|optional|the equipment's name/description
+
+
+### Current-availability
+
+```json
+"current_availability": {
+    "cause": {
+        "label": "engineering work in progress"
+    },
+    "effect": {
+        "label": "platform 3 available via stairs only"
+    },
+    "periods": [
+        {
+            "begin": "20190216T000000",
+            "end": "20190601T220000"
+        }
+    ],
+    "status": "unavailable",
+    "updated_at": "2019-05-17T15:54:53+02:00"
+}
+```
+
+|Field|Type|Required|Description|
+|-----|----|--------|-----------|
+status|string|always|Equipment status: <ul><li>`"unknown"`: no realtime information available</li><li>`"unavailable"`: equipment is known to be unavailable with details provided below </li></ul>
+cause|label|optional|If status is `unavailable`, gives you the cause in a label
+effect|label|optional|If status is `unavailable`, gives you the effect in a label
+periods|period|optional|If status is `unavailable`, gives the effected period with a begin & end date
+updated_at|[iso-date-time](#iso-date-time)|optional|Last update time of the provided information
 
 Other objects
 -------------

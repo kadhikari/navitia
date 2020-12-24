@@ -28,260 +28,39 @@
 # IRC #navitia on freenode
 # https://groups.google.com/d/forum/navitia
 # www.navitia.io
+
 from __future__ import absolute_import, print_function, unicode_literals, division
 import logging
 from flask import request, g
-from flask_restful import fields, marshal_with, abort, inputs
-from jormungandr import i_manager, app
-from jormungandr.interfaces.v1.fields import disruption_marshaller, Links
-from jormungandr.interfaces.v1.fields import display_informations_vj, error, place,\
-    PbField, stop_date_time, enum_type, NonNullList, NonNullNested,\
-    SectionGeoJson, PbEnum, feed_publisher, Durations, context, Distances
-
+from flask_restful import abort
+from jormungandr import i_manager, app, fallback_modes
 from jormungandr.interfaces.parsers import default_count_arg_type
 from jormungandr.interfaces.v1.ResourceUri import complete_links
 from functools import wraps
-from jormungandr.interfaces.v1.fields import DateTime, Integer
 from jormungandr.timezone import set_request_timezone
 from jormungandr.interfaces.v1.make_links import create_external_link, create_internal_link
 from jormungandr.interfaces.v1.errors import ManageError
 from collections import defaultdict
-from navitiacommon import response_pb2
+from navitiacommon import response_pb2, type_pb2
 from jormungandr.utils import date_to_timestamp
-from jormungandr.interfaces.v1.Calendars import calendar
-from jormungandr.interfaces.v1.serializer import api, base
+from jormungandr.interfaces.v1.serializer import api
 from jormungandr.interfaces.v1.decorators import get_serializer
 from navitiacommon import default_values
 from jormungandr.interfaces.v1.journey_common import JourneyCommon, compute_possible_region
 from jormungandr.parking_space_availability.parking_places_manager import ManageParkingPlaces
 import six
-from navitiacommon.parser_args_type import BooleanType, OptionValue
-from jormungandr.interfaces.common import add_poi_infos_types
+from navitiacommon.parser_args_type import (
+    BooleanType,
+    OptionValue,
+    UnsignedInteger,
+    PositiveInteger,
+    DepthArgument,
+)
+from jormungandr.interfaces.common import add_poi_infos_types, handle_poi_infos
+from jormungandr.scenarios import new_default, distributed
+from jormungandr.fallback_modes import FallbackModes
 
 f_datetime = "%Y%m%dT%H%M%S"
-class SectionLinks(fields.Raw):
-
-    def output(self, key, obj):
-        links = None
-        try:
-            if obj.HasField(str("uris")):
-                links = obj.uris.ListFields()
-        except ValueError:
-            return None
-        response = []
-        if links:
-            for type_, value in links:
-                response.append({"type": type_.name, "id": value})
-
-        if obj.HasField(str('pt_display_informations')):
-            response.extend(base.make_notes(obj.pt_display_informations.notes))
-
-        if obj.HasField(str('ridesharing_information')):
-            response.extend([{"type": "ridesharing_ad",
-                              "rel": l.key,
-                              "href": l.href,
-                              "internal": False}
-                             for l in obj.ridesharing_information.links])
-        return response
-
-
-class FareLinks(fields.Raw):
-
-    def output(self, key, obj):
-        ticket_ids = []
-        try:
-            for t_id in obj.ticket_id:
-                ticket_ids.append(t_id)
-        except ValueError:
-            return None
-        response = []
-        for value in ticket_ids:
-            response.append(create_internal_link(_type="ticket", rel="tickets",
-                                                 id=value))
-        return response
-
-
-class TicketLinks(fields.Raw):
-
-    def output(self, key, obj):
-        section_ids = []
-        try:
-            for s_id in obj.section_id:
-                section_ids.append(s_id)
-        except ValueError:
-            return None
-        response = []
-        for value in section_ids:
-            response.append({"type": "section", "rel": "sections",
-                             "internal": True, "templated": False,
-                             "id": value})
-        return response
-
-
-class section_type(enum_type):
-
-    def if_on_demand_stop_time(self, stop):
-        properties = stop.properties
-        descriptor = properties.DESCRIPTOR
-        enum = descriptor.enum_types_by_name["AdditionalInformation"]
-        for v in properties.additional_informations:
-            if enum.values_by_number[v].name == 'on_demand_transport':
-                return True
-        return False
-
-    def output(self, key, obj):
-        try:
-            if obj.stop_date_times:
-                first_stop = obj.stop_date_times[0]
-                last_stop = obj.stop_date_times[-1]
-                if self.if_on_demand_stop_time(first_stop):
-                    return 'on_demand_transport'
-                elif self.if_on_demand_stop_time(last_stop):
-                    return 'on_demand_transport'
-                return 'public_transport'
-        except ValueError:
-            pass
-        return super(section_type, self).output("type", obj)
-
-
-class section_place(PbField):
-
-    def output(self, key, obj):
-        enum_t = obj.DESCRIPTOR.fields_by_name['type'].enum_type.values_by_name
-        if obj.type == enum_t['WAITING'].number:
-            return None
-        else:
-            return super(PbField, self).output(key, obj)
-
-
-class JourneyDebugInfo(fields.Raw):
-    def output(self, key, obj):
-        if not hasattr(g, 'debug') or not g.debug:
-            return None
-
-        debug = {
-            'streetnetwork_duration': obj.sn_dur,
-            'transfer_duration': obj.transfer_dur,
-            'min_waiting_duration': obj.min_waiting_dur,
-            'nb_vj_extentions': obj.nb_vj_extentions,
-            'nb_sections': obj.nb_sections,
-        }
-        if hasattr(obj, 'internal_id'):
-            debug['internal_id'] = obj.internal_id
-
-        return debug
-
-seats_description = {
-    "total": Integer(),
-    "available": Integer(),
-}
-
-individual_rating = {
-    "value": fields.Raw,
-    "count": Integer(),
-    "scale_min": fields.Raw,
-    "scale_max": fields.Raw,
-}
-
-individual_information = {
-    "alias": fields.String(),
-    "image": fields.String(),
-    "gender": enum_type(attribute="gender"),
-    "rating": PbField(individual_rating, attribute="rating"),
-}
-
-ridesharing_information = {
-    "operator": fields.String(),
-    "network": fields.String(),
-    "driver": PbField(individual_information, attribute="driver"),
-    "seats": PbField(seats_description, attribute="seats"),
-}
-
-section = {
-    "type": section_type(),
-    "id": fields.String(),
-    "mode": enum_type(attribute="street_network.mode"),
-    "duration": Integer(),
-    "from": section_place(place, attribute="origin"),
-    "to": section_place(place, attribute="destination"),
-    "links": SectionLinks(attribute="uris"),
-    "display_informations": PbField(display_informations_vj,
-                                    attribute='pt_display_informations'),
-    "additional_informations": NonNullList(PbEnum(response_pb2.SectionAdditionalInformationType)),
-    "geojson": SectionGeoJson(),
-    "path": NonNullList(NonNullNested({"length": Integer(),
-                                       "name": fields.String(),
-                                       "duration": Integer(),
-                                       "direction": fields.Integer()}),
-                        attribute="street_network.path_items"),
-    "transfer_type": enum_type(),
-    "stop_date_times": NonNullList(NonNullNested(stop_date_time)),
-    "departure_date_time": DateTime(attribute="begin_date_time"),
-    "base_departure_date_time": DateTime(attribute="base_begin_date_time"),
-    "arrival_date_time": DateTime(attribute="end_date_time"),
-    "base_arrival_date_time": DateTime(attribute="base_end_date_time"),
-    'data_freshness': enum_type(attribute='realtime_level'),
-    "co2_emission": NonNullNested({
-        'value': fields.Raw,
-        'unit': fields.String
-        }),
-    "ridesharing_informations": PbField(ridesharing_information, attribute="ridesharing_information"),
-}
-
-cost = {
-    'value': fields.String(),
-    'currency': fields.String(),
-}
-
-fare = {
-    'total': NonNullNested(cost),
-    'found': fields.Boolean(),
-    'links': FareLinks(attribute="ticket_id")
-}
-
-journey = {
-    'duration': fields.Integer(),
-    'nb_transfers': fields.Integer(),
-    'departure_date_time': DateTime(),
-    'arrival_date_time': DateTime(),
-    'requested_date_time': DateTime(),
-    'sections': NonNullList(NonNullNested(section)),
-    'from': PbField(place, attribute='origin'),
-    'to': PbField(place, attribute='destination'),
-    'type': fields.String(),
-    'fare': NonNullNested(fare),
-    'tags': fields.List(fields.String),
-    "status": fields.String(attribute="most_serious_disruption_effect"),
-    "calendars": NonNullList(NonNullNested(calendar)),
-    "co2_emission": NonNullNested({
-        'value': fields.Raw,
-        'unit': fields.String
-        }),
-    "durations": Durations(),
-    "distances": Distances(),
-    "debug": JourneyDebugInfo()
-}
-section["ridesharing_journeys"] = NonNullList(NonNullNested(journey))
-
-ticket = {
-    "id": fields.String(),
-    "name": fields.String(),
-    "comment": fields.String(),
-    "found": fields.Boolean(),
-    "cost": NonNullNested(cost),
-    "links": TicketLinks(attribute="section_id")
-}
-
-
-journeys = {
-    "journeys": NonNullList(NonNullNested(journey)),
-    "error": PbField(error, attribute='error'),
-    "tickets": fields.List(NonNullNested(ticket)),
-    "disruptions": fields.List(NonNullNested(disruption_marshaller), attribute="impacts"),
-    "feed_publishers": fields.List(NonNullNested(feed_publisher)),
-    "links": fields.List(Links()),
-    "context": context,
-}
 
 
 class add_debug_info(object):
@@ -290,6 +69,7 @@ class add_debug_info(object):
 
     must be called after the transformation from protobuff to dict
     """
+
     def __call__(self, f):
         @wraps(f)
         def wrapper(*args, **kwargs):
@@ -311,11 +91,11 @@ class add_debug_info(object):
                 get_debug()['regions_called'] = g.regions_called
 
             return objects
+
         return wrapper
 
 
 class add_journey_href(object):
-
     def __call__(self, f):
         @wraps(f)
         def wrapper(*args, **kwargs):
@@ -324,13 +104,17 @@ class add_journey_href(object):
                 return objects
             for journey in objects[0]['journeys']:
                 args = dict(request.args)
-                allowed_ids = {o['stop_point']['id']
-                       for s in journey.get('sections', []) if 'from' in s
-                       for o in (s['from'], s['to']) if 'stop_point' in o}
+                allowed_ids = {
+                    o['stop_point']['id']
+                    for s in journey.get('sections', [])
+                    if 'from' in s
+                    for o in (s['from'], s['to'])
+                    if 'stop_point' in o
+                }
 
                 if 'region' in kwargs:
                     args['region'] = kwargs['region']
-                if "sections" not in journey:#this mean it's an isochrone...
+                if "sections" not in journey:  # this mean it's an isochrone...
                     if 'to' not in args:
                         args['to'] = journey['to']['id']
                     if 'from' not in args:
@@ -367,12 +151,12 @@ class add_journey_href(object):
 
                     journey['links'] = [create_external_link('v1.journeys', **args)]
             return objects
+
         return wrapper
 
 
-#add the link between a section and the ticket needed for that section
+# add the link between a section and the ticket needed for that section
 class add_fare_links(object):
-
     def __call__(self, f):
         @wraps(f)
         def wrapper(*args, **kwargs):
@@ -395,24 +179,23 @@ class add_fare_links(object):
                     continue
                 for s in j['sections']:
 
-                    #them we add the link to the different tickets needed
+                    # them we add the link to the different tickets needed
                     for ticket_needed in ticket_by_section[s["id"]]:
-                        s['links'].append(create_internal_link(_type="ticket",
-                                                               rel="tickets",
-                                                               id=ticket_needed))
+                        s['links'].append(create_internal_link(_type="ticket", rel="tickets", id=ticket_needed))
                     if "ridesharing_journeys" not in s:
                         continue
                     for rsj in s['ridesharing_journeys']:
                         if "sections" not in rsj:
                             continue
                         for rss in rsj['sections']:
-                            #them we add the link to the different ridesharing-tickets needed
+                            # them we add the link to the different ridesharing-tickets needed
                             for rs_ticket_needed in ticket_by_section[rss["id"]]:
-                                rss['links'].append(create_internal_link(_type="ticket",
-                                                                         rel="tickets",
-                                                                         id=rs_ticket_needed))
+                                rss['links'].append(
+                                    create_internal_link(_type="ticket", rel="tickets", id=rs_ticket_needed)
+                                )
 
             return objects
+
         return wrapper
 
 
@@ -422,6 +205,7 @@ class rig_journey(object):
     those origin/destination can be changed internally by some scenarios
     (querying external autocomplete service)
     """
+
     def __call__(self, f):
         @wraps(f)
         def wrapper(*args, **kwargs):
@@ -436,23 +220,26 @@ class rig_journey(object):
             for j in response.get('journeys', []):
                 if not 'sections' in j:
                     continue
-                logging.debug('for journey changing origin: {old_o} to {new_o}'
-                              ', destination to {old_d} to {new_d}'
-                              .format(old_o=j.get('sections', [{}])[0].get('from').get('id'),
-                                      new_o=(g.origin_detail or {}).get('id'),
-                                      old_d=j.get('sections', [{}])[-1].get('to').get('id'),
-                                      new_d=(g.destination_detail or {}).get('id')))
+                logging.debug(
+                    'for journey changing origin: {old_o} to {new_o}'
+                    ', destination to {old_d} to {new_d}'.format(
+                        old_o=j.get('sections', [{}])[0].get('from').get('id'),
+                        new_o=(g.origin_detail or {}).get('id'),
+                        old_d=j.get('sections', [{}])[-1].get('to').get('id'),
+                        new_d=(g.destination_detail or {}).get('id'),
+                    )
+                )
                 if g.origin_detail:
                     j['sections'][0]['from'] = g.origin_detail
                 if g.destination_detail:
                     j['sections'][-1]['to'] = g.destination_detail
 
             return objects
+
         return wrapper
 
 
 class Journeys(JourneyCommon):
-
     def __init__(self):
         # journeys must have a custom authentication process
 
@@ -460,29 +247,53 @@ class Journeys(JourneyCommon):
 
         parser_get = self.parsers["get"]
 
-        parser_get.add_argument("count", type=default_count_arg_type,
-                                help='Fixed number of different journeys')
+        parser_get.add_argument("count", type=default_count_arg_type, help='Fixed number of different journeys')
         parser_get.add_argument("_min_journeys_calls", type=int, hidden=True)
         parser_get.add_argument("_final_line_filter", type=BooleanType(), hidden=True)
-        parser_get.add_argument("is_journey_schedules", type=BooleanType(), default=False,
-                                help="True when '/journeys' is called to compute"
-                                     "the same journey schedules and "
-                                     "it'll override some specific parameters")
-        parser_get.add_argument("min_nb_journeys", type=inputs.natural,
-                                help='Minimum number of different suggested journeys, must be >= 0')
-        parser_get.add_argument("max_nb_journeys", type=inputs.positive,
-                                help='Maximum number of different suggested journeys, must be > 0')
+        parser_get.add_argument(
+            "is_journey_schedules",
+            type=BooleanType(),
+            default=False,
+            help="True when '/journeys' is called to compute"
+            "the same journey schedules and "
+            "it'll override some specific parameters",
+        )
+        parser_get.add_argument(
+            "min_nb_journeys",
+            type=UnsignedInteger(),
+            help='Minimum number of different suggested journeys, must be >= 0',
+        )
+        parser_get.add_argument(
+            "max_nb_journeys",
+            type=PositiveInteger(),
+            help='Maximum number of different suggested journeys, must be > 0',
+        )
         parser_get.add_argument("_max_extra_second_pass", type=int, dest="max_extra_second_pass", hidden=True)
 
-        parser_get.add_argument("debug", type=BooleanType(), default=False, hidden=True,
-                                help='Activate debug mode.\n'
-                                     'No journeys are filtered in this mode.')
-        parser_get.add_argument("show_codes", type=BooleanType(), default=False, hidden=True, deprecated=True,
-                                help="show more identification codes")
-        parser_get.add_argument("_override_scenario", type=six.text_type, hidden=True,
-                                help="debug param to specify a custom scenario")
-        parser_get.add_argument("_street_network", type=six.text_type, hidden=True,
-                                help="choose the streetnetwork component")
+        parser_get.add_argument(
+            "debug",
+            type=BooleanType(),
+            default=False,
+            hidden=True,
+            help='Activate debug mode.\n' 'No journeys are filtered in this mode.',
+        )
+        parser_get.add_argument(
+            "show_codes",
+            type=BooleanType(),
+            default=False,
+            hidden=True,
+            deprecated=True,
+            help="DEPRECATED, show more identification codes",
+        )
+        parser_get.add_argument(
+            "_override_scenario",
+            type=six.text_type,
+            hidden=True,
+            help="debug param to specify a custom scenario",
+        )
+        parser_get.add_argument(
+            "_street_network", type=six.text_type, hidden=True, help="choose the streetnetwork component"
+        )
         parser_get.add_argument("_walking_transfer_penalty", hidden=True, type=int)
         parser_get.add_argument("_max_successive_physical_mode", hidden=True, type=int)
         parser_get.add_argument("_max_additional_connections", hidden=True, type=int)
@@ -490,36 +301,99 @@ class Journeys(JourneyCommon):
         parser_get.add_argument("_night_bus_filter_max_factor", hidden=True, type=float)
         parser_get.add_argument("_min_car", hidden=True, type=int)
         parser_get.add_argument("_min_bike", hidden=True, type=int)
-        parser_get.add_argument("bss_stands", type=BooleanType(), default=False,
-                                help="Show bss stands availability "
-                                     "in the bicycle_rental pois of response")
-        parser_get.add_argument("add_poi_infos[]", type=OptionValue(add_poi_infos_types), default=[],
-                                dest="add_poi_infos", action="append",
-                                help="Show more information about the poi if it's available, for instance, show "
-                                     "BSS/car park availability in the pois(BSS/car park) of response")
-        parser_get.add_argument("_no_shared_section", type=BooleanType(), default=False, hidden=True,
-                                dest="no_shared_section",
-                                help="Shared section journeys aren't returned as a separate journey")
-        parser_get.add_argument("timeframe_duration", type=int,
-                                dest="timeframe_duration",
-                                help="Minimum timeframe to search journeys.\n"
-                                     "For example 'timeframe_duration=3600' will search for all "
-                                     "interesting journeys departing within the next hour.\n"
-                                     "Nota 1: Navitia can return journeys after that timeframe as it's "
-                                     "actually a minimum.\n"
-                                     "Nota 2: 'max_nb_journeys' parameter has priority over "
-                                     "'timeframe_duration' parameter.")
+        parser_get.add_argument("_min_taxi", hidden=True, type=int)
+        parser_get.add_argument(
+            "bss_stands",
+            type=BooleanType(),
+            default=False,
+            deprecated=True,
+            help="DEPRECATED, Use add_poi_infos[]=bss_stands",
+        )
+        parser_get.add_argument(
+            "add_poi_infos[]",
+            type=OptionValue(add_poi_infos_types),
+            default=[],
+            dest="add_poi_infos",
+            action="append",
+            help="Show more information about the poi if it's available, for instance, show "
+            "BSS/car park availability in the pois(BSS/car park) of response",
+        )
+        parser_get.add_argument(
+            "_no_shared_section",
+            type=BooleanType(),
+            default=False,
+            hidden=True,
+            dest="no_shared_section",
+            help="Shared section journeys aren't returned as a separate journey",
+        )
+        parser_get.add_argument(
+            "timeframe_duration",
+            type=int,
+            dest="timeframe_duration",
+            help="Minimum timeframe to search journeys.\n"
+            "For example 'timeframe_duration=3600' will search for all "
+            "interesting journeys departing within the next hour.\n"
+            "Nota 1: Navitia can return journeys after that timeframe as it's "
+            "actually a minimum.\n"
+            "Nota 2: 'max_nb_journeys' parameter has priority over "
+            "'timeframe_duration' parameter.",
+        )
+        parser_get.add_argument(
+            "_max_nb_crowfly_by_walking",
+            type=int,
+            hidden=True,
+            help="limit nb of stop points accesible by walking crowfly, "
+            "used especially in distributed scenario",
+        )
+        parser_get.add_argument(
+            "_max_nb_crowfly_by_car",
+            type=int,
+            hidden=True,
+            help="limit nb of stop points accesible by car crowfly, " "used especially in distributed scenario",
+        )
+        parser_get.add_argument(
+            "_max_nb_crowfly_by_taxi",
+            type=int,
+            hidden=True,
+            help="limit nb of stop points accesible by taxi crowfly, " "used especially in distributed scenario",
+        )
+        parser_get.add_argument(
+            "_max_nb_crowfly_by_bike",
+            type=int,
+            hidden=True,
+            help="limit nb of stop points accesible by bike crowfly, " "used especially in distributed scenario",
+        )
+        parser_get.add_argument(
+            "_max_nb_crowfly_by_bss",
+            type=int,
+            hidden=True,
+            help="limit nb of stop points accesible by bss crowfly, " "used especially in distributed scenario",
+        )
+        parser_get.add_argument(
+            "equipment_details",
+            default=True,
+            type=BooleanType(),
+            help="enhance response with accessibility equipement details",
+        )
+        for mode in FallbackModes.modes_str():
+            parser_get.add_argument(
+                "max_{}_direct_path_duration".format(mode),
+                type=int,
+                help="limit duration of direct path in {}, used ONLY in distributed scenario".format(mode),
+            )
+        parser_get.add_argument("depth", type=DepthArgument(), default=1, help="The depth of your object")
+        args = self.parsers["get"].parse_args()
 
         self.get_decorators.append(complete_links(self))
 
-        if parser_get.parse_args().get("add_poi_infos") or parser_get.parse_args().get("bss_stands"):
+        if handle_poi_infos(args["add_poi_infos"], args["bss_stands"]):
             self.get_decorators.insert(1, ManageParkingPlaces(self, 'journeys'))
 
     @add_debug_info()
     @add_fare_links()
     @add_journey_href()
     @rig_journey()
-    @get_serializer(serpy=api.JourneysSerializer, marshall=journeys)
+    @get_serializer(serpy=api.JourneysSerializer)
     @ManageError()
     def get(self, region=None, lon=None, lat=None, uri=None):
         args = self.parsers['get'].parse_args()
@@ -531,8 +405,11 @@ class Journeys(JourneyCommon):
             args['min_nb_journeys'] = args['count']
             args['max_nb_journeys'] = args['count']
 
-        if args['min_nb_journeys'] and args['max_nb_journeys'] and \
-                args['max_nb_journeys'] < args['min_nb_journeys']:
+        if (
+            args['min_nb_journeys']
+            and args['max_nb_journeys']
+            and args['max_nb_journeys'] < args['min_nb_journeys']
+        ):
             abort(400, message='max_nb_journeyes must be >= min_nb_journeys')
 
         if args.get('timeframe_duration'):
@@ -573,6 +450,24 @@ class Journeys(JourneyCommon):
                 args['_final_line_filter'] = mod.final_line_filter
             if args.get('_max_extra_second_pass') is None:
                 args['_max_extra_second_pass'] = mod.max_extra_second_pass
+            if args.get('additional_time_after_first_section_taxi') is None:
+                args['additional_time_after_first_section_taxi'] = mod.additional_time_after_first_section_taxi
+            if args.get('additional_time_before_last_section_taxi') is None:
+                args['additional_time_before_last_section_taxi'] = mod.additional_time_before_last_section_taxi
+
+            # we create a new arg for internal usage, only used by distributed scenario
+            args['max_nb_crowfly_by_mode'] = mod.max_nb_crowfly_by_mode  # it's a dict of str vs int
+            for mode in fallback_modes.all_fallback_modes:
+                nb_crowfly = args.get('_max_nb_crowfly_by_{}'.format(mode))
+                if nb_crowfly is not None:
+                    args['max_nb_crowfly_by_mode'][mode] = nb_crowfly
+
+            # activated only for distributed
+            for mode in FallbackModes.modes_str():
+                tmp = 'max_{}_direct_path_duration'.format(mode)
+                if args.get(tmp) is None:
+                    args[tmp] = getattr(mod, tmp)
+
         if region:
             _set_specific_params(i_manager.instances[region])
         else:
@@ -594,7 +489,9 @@ class Journeys(JourneyCommon):
 
         # Add the interpreted parameters to the stats
         self._register_interpreted_parameters(args)
-        logging.getLogger(__name__).debug("We are about to ask journeys on regions : {}".format(possible_regions))
+        logging.getLogger(__name__).debug(
+            "We are about to ask journeys on regions : {}".format(possible_regions)
+        )
 
         # Store the different errors
         responses = {}
@@ -616,19 +513,26 @@ class Journeys(JourneyCommon):
                 new_datetime = self.convert_to_utc(original_datetime)
             args['datetime'] = date_to_timestamp(new_datetime)
 
+            scenario_name = i_manager.get_instance_scenario_name(self.region, args.get('_override_scenario'))
+
+            if scenario_name == "new_default" and (
+                "taxi" in args["origin_mode"] or "taxi" in args["destination_mode"]
+            ):
+                abort(400, message="taxi is not available with new_default scenario")
+
             response = i_manager.dispatch(args, api, instance_name=self.region)
 
             # If journeys list is empty and error field not exist, we create
             # the error message field
             if not response.journeys and not response.HasField(str('error')):
-                logging.getLogger(__name__).debug("impossible to find journeys for the region {},"
-                                                 " insert error field in response ".format(r))
+                logging.getLogger(__name__).debug(
+                    "impossible to find journeys for the region {}," " insert error field in response ".format(r)
+                )
                 response.error.id = response_pb2.Error.no_solution
                 response.error.message = "no solution found for this journey"
                 response.response_type = response_pb2.NO_SOLUTION
 
-            if response.HasField(str('error')) \
-                    and len(possible_regions) != 1:
+            if response.HasField(str('error')) and len(possible_regions) != 1:
 
                 if args['debug']:
                     # In debug we store all errors
@@ -636,23 +540,30 @@ class Journeys(JourneyCommon):
                         g.errors_by_region = {}
                     g.errors_by_region[r] = response.error
 
-                logging.getLogger(__name__).debug("impossible to find journeys for the region {},"
-                                                 " we'll try the next possible region ".format(r))
+                logging.getLogger(__name__).debug(
+                    "impossible to find journeys for the region {},"
+                    " we'll try the next possible region ".format(r)
+                )
                 responses[r] = response
                 continue
 
             non_pt_types = ("non_pt_walk", "non_pt_bike", "non_pt_bss", "car")
-            if all(j.type in non_pt_types for j in response.journeys) or \
-               all("non_pt" in j.tags for j in response.journeys):
+            if all(j.type in non_pt_types for j in response.journeys) or all(
+                "non_pt" in j.tags for j in response.journeys
+            ):
                 responses[r] = response
                 continue
+
+            if args['equipment_details']:
+                # Manage equipments in stop points from the journeys sections
+                instance = i_manager.instances.get(self.region)
+                return instance.equipment_provider_manager.manage_equipments_for_journeys(response)
 
             return response
 
         for response in responses.values():
             if not response.HasField(str("error")):
                 return response
-
 
         # if no response have been found for all the possible regions, we have a problem
         # if all response had the same error we give it, else we give a generic 'no solution' error

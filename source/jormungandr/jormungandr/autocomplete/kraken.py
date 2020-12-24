@@ -34,25 +34,14 @@ from jormungandr.exceptions import InvalidArguments
 from jormungandr.interfaces.v1.decorators import get_serializer
 from jormungandr.interfaces.v1.serializer import api
 from jormungandr.scenarios.utils import build_pagination, places_type
-from jormungandr.interfaces.v1.fields import NonNullList, place, NonNullNested, PbField, error, feed_publisher,\
-    disruption_marshaller
-from flask.ext.restful import marshal_with, fields, abort
+from flask_restful import abort
 import navitiacommon.request_pb2 as request_pb2
 import navitiacommon.type_pb2 as type_pb2
 from jormungandr.utils import date_to_timestamp
 
 
-places = {
-    "places": NonNullList(NonNullNested(place)),
-    "error": PbField(error, attribute='error'),
-    "disruptions": fields.List(NonNullNested(disruption_marshaller), attribute="impacts"),
-    "feed_publishers": fields.List(NonNullNested(feed_publisher))
-}
-
-
 class Kraken(AbstractAutocomplete):
-
-    @get_serializer(serpy=api.PlacesSerializer, marshall=places)
+    @get_serializer(serpy=api.PlacesSerializer)
     def get(self, request, instances):
         if len(instances) != 1:
             raise InvalidArguments('kraken autocomplete works only for one (and only one) instance')
@@ -63,7 +52,9 @@ class Kraken(AbstractAutocomplete):
         req.places.depth = request['depth']
         req.places.count = request['count']
         req.places.search_type = request['search_type']
+        req.places.main_stop_area_weight_factor = request.get('_main_stop_area_weight_factor', 1.0)
         req._current_datetime = date_to_timestamp(request['_current_datetime'])
+        req.disable_disruption = True
         if request["type[]"]:
             for type in request["type[]"]:
                 if type not in places_type:
@@ -100,7 +91,7 @@ class Kraken(AbstractAutocomplete):
             status.poi_sources.append(resp.geo_status.poi_source)
         return status
 
-    @get_serializer(serpy=api.PlacesSerializer, marshall=places)
+    @get_serializer(serpy=api.PlacesSerializer)
     def get_by_uri(self, uri, instances=None, current_datetime=None):
         if len(instances) != 1:
             raise InvalidArguments('kraken search by uri works only for one (and only one) instance')
@@ -114,3 +105,6 @@ class Kraken(AbstractAutocomplete):
 
     def status(self):
         return {'class': self.__class__.__name__}
+
+    def is_handling_stop_points(self):
+        return True

@@ -49,7 +49,6 @@ def protect(uri):
 
 
 class ResourceUri(StatedResource):
-
     def __init__(self, authentication=True, links=True, *args, **kwargs):
         StatedResource.__init__(self, *args, **kwargs)
         self.region = None
@@ -60,13 +59,21 @@ class ResourceUri(StatedResource):
             self.get_decorators.append(clean_links())
 
         if authentication:
-            #some rare API (eg journey) must handle the authenfication by themself, thus deactivate it
-            #by default ALWAYS use authentication=True
+            # some rare API (eg journey) must handle the authenfication by themself, thus deactivate it
+            # by default ALWAYS use authentication=True
             self.get_decorators.append(authentication_required)
 
     def get_filter(self, items, args):
 
-        filter_list = [args["filter"]] if args.get("filter") else []
+        # handle headsign
+        if args.get("headsign"):
+            f = u"vehicle_journey.has_headsign({})".format(protect(args["headsign"]))
+            if args.get("filter"):
+                args["filter"] = '({}) and {}'.format(args["filter"], f)
+            else:
+                args["filter"] = f
+
+        filter_list = ['({})'.format(args["filter"])] if args.get("filter") else []
         type_ = None
 
         for item in items:
@@ -89,18 +96,22 @@ class ResourceUri(StatedResource):
                         if self.collection == "pois":
                             object_type = "poi"
                         filter_ = '{obj}.coord DWITHIN({lon},{lat},{distance})'.format(
-                            obj=object_type, lon=lon, lat=lat, distance=args.get('distance', 200))
+                            obj=object_type, lon=lon, lat=lat, distance=args.get('distance', 200)
+                        )
                         filter_list.append(filter_)
                     else:
                         filter_list.append(type_ + ".uri=" + protect(item))
                 else:
                     filter_list.append(type_ + ".uri=" + protect(item))
                 type_ = None
+        # handle tags
+        tags = args.get("tags[]", [])
+        if tags:
+            filter_list.append('disruption.tags({})'.format(' ,'.join([protect(t) for t in tags])))
         return " and ".join(filter_list)
 
 
 class add_computed_resources(object):
-
     def __init__(self, resource):
         self.resource = resource
 
@@ -134,43 +145,48 @@ class add_computed_resources(object):
                 templated = False
             else:
                 kwargs["uri"] += '{' + collection + ".id}"
-            if collection in ['stop_areas', 'stop_points', 'lines', 'routes',
-                              'addresses'] and "region" in kwargs:
-                for api in ['route_schedules', 'stop_schedules',
-                            'arrivals', 'departures', "places_nearby"]:
-                    data['links'].append({
-                        "href": url_for("v1." + api, **kwargs),
-                        "rel": api,
-                        "type": api,
-                        "templated": templated
-                    })
+            if (
+                collection in ['stop_areas', 'stop_points', 'lines', 'routes', 'addresses']
+                and "region" in kwargs
+            ):
+                for api in ['route_schedules', 'stop_schedules', 'arrivals', 'departures', "places_nearby"]:
+                    data['links'].append(
+                        {"href": url_for("v1." + api, **kwargs), "rel": api, "type": api, "templated": templated}
+                    )
             if collection in ['stop_areas', 'stop_points', 'addresses']:
-                data['links'].append({
-                    "href": url_for("v1.journeys", **kwargs),
-                    "rel": "journeys",
-                    "type": "journey",
-                    "templated": templated
-                })
-            #for lines we add the link to the calendars
+                data['links'].append(
+                    {
+                        "href": url_for("v1.journeys", **kwargs),
+                        "rel": "journeys",
+                        "type": "journey",
+                        "templated": templated,
+                    }
+                )
+            # for lines we add the link to the calendars
             if 'region' in kwargs:
                 if collection == 'lines':
-                    data['links'].append({
-                        "href": url_for("v1.calendars", **kwargs),
-                        "rel": "calendars",
-                        "type": "calendar",
-                        "templated": templated
-                    })
+                    data['links'].append(
+                        {
+                            "href": url_for("v1.calendars", **kwargs),
+                            "rel": "calendars",
+                            "type": "calendar",
+                            "templated": templated,
+                        }
+                    )
                 if collection in ['stop_areas', 'lines', 'networks']:
-                    data['links'].append({
-                        "href": url_for("v1.traffic_reports", **kwargs),
-                        "rel": "disruptions",
-                        "type": "disruption",
-                        "templated": templated
-                    })
+                    data['links'].append(
+                        {
+                            "href": url_for("v1.traffic_reports", **kwargs),
+                            "rel": "disruptions",
+                            "type": "disruption",
+                            "templated": templated,
+                        }
+                    )
             if isinstance(response, tuple):
                 return data, code, header
             else:
                 return data
+
         return wrapper
 
 

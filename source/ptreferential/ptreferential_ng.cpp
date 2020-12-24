@@ -1,28 +1,28 @@
 /* Copyright © 2001-2014, Canal TP and/or its affiliates. All rights reserved.
-  
+
 This file is part of Navitia,
     the software to build cool stuff with public transport.
- 
+
 Hope you'll enjoy and contribute to this project,
     powered by Canal TP (www.canaltp.fr).
 Help us simplify mobility and open public transport:
     a non ending quest to the responsive locomotion way of traveling!
-  
+
 LICENCE: This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
-   
+
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Affero General Public License for more details.
-   
+
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
-  
+
 Stay tuned using
-twitter @navitia 
+twitter @navitia
 IRC #navitia on freenode
 https://groups.google.com/d/forum/navitia
 www.navitia.io
@@ -32,29 +32,98 @@ www.navitia.io
 #include "ptreferential_utils.h"
 #include "ptreferential.h"
 #include "type/pt_data.h"
+#include "utils/logger.h"
 
 #include <boost/spirit/include/qi.hpp>
 #include <boost/spirit/include/phoenix.hpp>
+#include "type/line.h"
+#include "type/type.h"  //TODO: move static_data
 
 namespace qi = boost::spirit::qi;
 namespace ascii = boost::spirit::ascii;
 using navitia::type::Indexes;
-using navitia::type::Type_e;
 using navitia::type::OdtLevel_e;
+using navitia::type::Type_e;
 
-namespace navitia{
-namespace ptref{
+namespace navitia {
+namespace ptref {
+
+namespace ast {
+
+Expr& Expr::operator+=(Expr const& rhs) {
+    expr = BinaryOp<Or>(expr, rhs);
+    return *this;
+}
+Expr& Expr::operator-=(Expr const& rhs) {
+    expr = BinaryOp<Diff>(expr, rhs);
+    return *this;
+}
+Expr& Expr::operator*=(Expr const& rhs) {
+    expr = BinaryOp<And>(expr, rhs);
+    return *this;
+}
+
+void print_quoted_string(std::ostream& os, const std::string& s) {
+    os << '"';
+    for (const auto& c : s) {
+        switch (c) {
+            case '\\':
+            case '"':
+                os << '\\' << c;
+                break;
+            default:
+                os << c;
+        }
+    }
+    os << '"';
+}
+std::ostream& operator<<(std::ostream& os, const Expr& expr) {
+    return os << expr.expr;
+}
+std::ostream& operator<<(std::ostream& os, const All&) {
+    return os << "all";
+}
+std::ostream& operator<<(std::ostream& os, const Empty&) {
+    return os << "empty";
+}
+std::ostream& operator<<(std::ostream& os, const Fun& fun) {
+    os << fun.type << '.' << fun.method << '(';
+    auto it = fun.args.begin(), end = fun.args.end();
+    if (it != end) {
+        print_quoted_string(os, *it);
+        ++it;
+    }
+    for (; it != end; ++it) {
+        os << ", ";
+        print_quoted_string(os, *it);
+    }
+    return os << ')';
+}
+std::ostream& operator<<(std::ostream& os, const GetCorresponding& to_object) {
+    return os << "(GET " << to_object.type << " <- " << to_object.expr << ')';
+}
+std::ostream& operator<<(std::ostream& os, const BinaryOp<And>& op) {
+    return os << '(' << op.lhs << " AND " << op.rhs << ')';
+}
+std::ostream& operator<<(std::ostream& os, const BinaryOp<Or>& op) {
+    return os << '(' << op.lhs << " OR " << op.rhs << ')';
+}
+std::ostream& operator<<(std::ostream& os, const BinaryOp<Diff>& op) {
+    return os << '(' << op.lhs << " - " << op.rhs << ')';
+}
+
+}  // namespace ast
 
 namespace {
 
 template <typename Iterator>
-struct PtRefGrammar: qi::grammar<Iterator, ast::Expr(), ascii::space_type> {
-    PtRefGrammar(): PtRefGrammar::base_type(expr) {
+struct PtRefGrammar : qi::grammar<Iterator, ast::Expr(), ascii::space_type> {
+    PtRefGrammar() : PtRefGrammar::base_type(expr) {
         using namespace qi::labels;
         using boost::spirit::_1;
         using boost::spirit::_2;
         namespace phx = boost::phoenix;
-
+        // clang-format off
         pred = all | empty | fun | cmp | dwithin;
         all = qi::lit("all")[_val = phx::construct<ast::All>()];
         empty = qi::lit("empty")[_val = phx::construct<ast::Empty>()];
@@ -69,7 +138,7 @@ struct PtRefGrammar: qi::grammar<Iterator, ast::Expr(), ascii::space_type> {
             >> "coord"
             >> qi::lit("DWITHIN")[phx::at_c<1>(_val) = "within"]
             >> '('
-            >> str[phx::push_back(phx::at_c<2>(_val), ""),
+            >> str[phx::push_back(phx::at_c<2>(_val), phx::construct<std::string>()),
                    phx::push_back(phx::at_c<2>(_val), _1)]
             >> ','
             >> str[phx::back(phx::at_c<2>(_val)) += ";",
@@ -80,20 +149,16 @@ struct PtRefGrammar: qi::grammar<Iterator, ast::Expr(), ascii::space_type> {
 
         get_corresponding = (qi::lit("get") | qi::lit("GET")) >> ident >> "<-" >> expr;
         expr_leaf = '(' >> expr >> ')' | pred | get_corresponding;
-        expr_diff = (expr_leaf >> '-' >> expr_diff)
-            [_val = phx::construct<ast::BinaryOp<ast::Diff>>(_1, _2)]
-            | expr_leaf[_val = _1];
-        expr_and = (expr_diff >> (qi::lit("AND") | qi::lit("and")) >> expr_and)
-            [_val = phx::construct<ast::BinaryOp<ast::And>>(_1, _2)]
-            | expr_diff[_val = _1];
-        expr_or = (expr_and >> (qi::lit("OR") | qi::lit("or")) >> expr_or)
-            [_val = phx::construct<ast::BinaryOp<ast::Or>>(_1, _2)]
-            | expr_and[_val = _1];
+        expr_diff = expr_leaf[_val = _1] >> *('-' >> expr_leaf[_val -= _1]);
+        expr_and = expr_diff[_val = _1] >> *((qi::lit("AND") | qi::lit("and")) >> expr_diff[_val *= _1]);
+        expr_or = expr_and[_val = _1] >> *((qi::lit("OR") | qi::lit("or")) >> expr_and[_val += _1]);
         expr = expr_or;
 
         ident = qi::lexeme[qi::alpha >> *(qi::alnum | qi::char_("_"))];
         str = qi::lexeme[+(qi::alnum | qi::char_("_.:;|-"))]
-            | qi::lexeme['"' > *(qi::char_ - qi::char_("\"\\") | ('\\' > qi::char_)) > '"'];
+            | qi::lexeme['"' > (*(qi::char_ - qi::char_("\"\\") | ('\\' > qi::char_))) > '"'];
+
+        // clang-format on
     }
 
     // Pred
@@ -119,10 +184,14 @@ struct PtRefGrammar: qi::grammar<Iterator, ast::Expr(), ascii::space_type> {
 
 const char* to_string(OdtLevel_e level) {
     switch (level) {
-    case type::OdtLevel_e::scheduled: return "scheduled";
-    case type::OdtLevel_e::with_stops: return "with_stops";
-    case type::OdtLevel_e::zonal: return "zonal";
-    default: return "all";
+        case type::OdtLevel_e::scheduled:
+            return "scheduled";
+        case type::OdtLevel_e::with_stops:
+            return "with_stops";
+        case type::OdtLevel_e::zonal:
+            return "zonal";
+        default:
+            return "all";
     }
 }
 
@@ -143,8 +212,7 @@ boost::posix_time::ptime from_datetime(const std::string& s) {
         throw parsing_error(parsing_error::partial_error, "empty datetime is illegal");
     }
     if (s.back() != 'Z') {
-        throw parsing_error(parsing_error::partial_error,
-                            "only UTC datetime are allowed (must finish with `Z`): " + s);
+        throw parsing_error(parsing_error::partial_error, "only UTC datetime are allowed (must finish with `Z`): " + s);
     }
     try {
         return boost::posix_time::from_iso_string(s.substr(0, s.size() - 1));
@@ -153,50 +221,56 @@ boost::posix_time::ptime from_datetime(const std::string& s) {
     }
 }
 
-struct Eval: boost::static_visitor<Indexes> {
+struct Eval : boost::static_visitor<Indexes> {
     const Type_e target;
     const type::Data& data;
-    Eval(Type_e t, const type::Data& d): target(t), data(d) {}
+    Eval(Type_e t, const type::Data& d) : target(t), data(d) {}
 
-    Indexes operator()(const ast::All&) const {
-        return data.get_all_index(target);
-    }
-    Indexes operator()(const ast::Empty&) const {
-        return Indexes();
-    }
+    Indexes operator()(const ast::All&) const { return data.get_all_index(target); }
+    Indexes operator()(const ast::Empty&) const { return Indexes(); }
     Indexes operator()(const ast::Fun& f) const {
         Indexes indexes;
         if (f.type == "vehicle_journey" && f.method == "has_headsign" && f.args.size() == 1) {
-            for (auto vj: data.pt_data->headsign_handler.get_vj_from_headsign(f.args.at(0))) {
+            for (auto vj : data.pt_data->headsign_handler.get_vj_from_headsign(f.args.at(0))) {
                 indexes.insert(vj->idx);
             }
         } else if (f.type == "vehicle_journey" && f.method == "has_disruption" && f.args.size() == 0) {
             indexes = get_indexes_by_impacts(type::Type_e::VehicleJourney, data);
         } else if (f.type == "line" && f.method == "code" && f.args.size() == 1) {
-            for (auto l: data.pt_data->lines) {
-                if (l->code != f.args[0]) { continue; }
+            for (auto l : data.pt_data->lines) {
+                if (l->code != f.args[0]) {
+                    continue;
+                }
                 indexes.insert(l->idx);
             }
         } else if (f.type == "line" && f.method == "odt_level" && f.args.size() == 1) {
             const auto level = odt_level_from_string(f.args.at(0));
-            for (auto l: data.pt_data->lines) {
+            for (auto l : data.pt_data->lines) {
                 const auto properties = l->get_odt_properties();
                 switch (level) {
-                case OdtLevel_e::scheduled:
-                    if (properties.is_scheduled()) { indexes.insert(l->idx); }
-                    break;
-                case OdtLevel_e::with_stops:
-                    if (properties.is_with_stops()) { indexes.insert(l->idx); }
-                    break;
-                case OdtLevel_e::zonal:
-                    if (properties.is_zonal()) { indexes.insert(l->idx); }
-                    break;
-                default:
-                    indexes.insert(l->idx);
+                    case OdtLevel_e::scheduled:
+                        if (properties.is_scheduled()) {
+                            indexes.insert(l->idx);
+                        }
+                        break;
+                    case OdtLevel_e::with_stops:
+                        if (properties.is_with_stops()) {
+                            indexes.insert(l->idx);
+                        }
+                        break;
+                    case OdtLevel_e::zonal:
+                        if (properties.is_zonal()) {
+                            indexes.insert(l->idx);
+                        }
+                        break;
+                    default:
+                        indexes.insert(l->idx);
                 }
             }
-        } else if ((f.method == "since" && f.args.size() == 1)
-                   || (f.method == "until" && f.args.size() == 1)
+        } else if (f.type == "disruption"
+                   && ((f.method == "tag" && f.args.size() == 1) || (f.method == "tags" && f.args.size() >= 1))) {
+            indexes = get_impacts_by_tags(f.args, data);
+        } else if ((f.method == "since" && f.args.size() == 1) || (f.method == "until" && f.args.size() == 1)
                    || (f.method == "between" && f.args.size() == 2)) {
             boost::optional<boost::posix_time::ptime> since, until;
             if (f.method == "since") {
@@ -220,7 +294,9 @@ struct Eval: boost::static_visitor<Indexes> {
             try {
                 std::vector<std::string> splited;
                 boost::algorithm::split(splited, f.args.at(1), boost::algorithm::is_any_of(";"));
-                if (splited.size() != 2) { throw 0; }
+                if (splited.size() != 2) {
+                    throw 0;
+                }
                 coord = type::GeographicalCoord(boost::lexical_cast<double>(splited[0]),
                                                 boost::lexical_cast<double>(splited[1]));
             } catch (...) {
@@ -233,6 +309,8 @@ struct Eval: boost::static_visitor<Indexes> {
             indexes = get_indexes_from_name(type_by_caption(f.type), f.args.at(0), data);
         } else if (f.method == "has_code" && f.args.size() == 2) {
             indexes = get_indexes_from_code(type_by_caption(f.type), f.args.at(0), f.args.at(1), data);
+        } else if (f.method == "has_code_type") {
+            indexes = get_indexes_from_code_type(type_by_caption(f.type), f.args, data);
         } else {
             std::stringstream ss;
             ss << "Unknown function: " << f;
@@ -242,26 +320,25 @@ struct Eval: boost::static_visitor<Indexes> {
     }
     Indexes operator()(const ast::GetCorresponding& expr) const {
         const auto from = type_by_caption(expr.type);
-        auto indexes = boost::apply_visitor(Eval(from, data), expr.expr);
+        auto indexes = Eval(from, data)(expr.expr);
         return get_corresponding(indexes, from, target, data);
     }
     Indexes operator()(const ast::BinaryOp<ast::And>& expr) const {
-        return get_intersection(boost::apply_visitor(*this, expr.lhs),
-                                boost::apply_visitor(*this, expr.rhs));
+        return get_intersection((*this)(expr.lhs), (*this)(expr.rhs));
     }
     Indexes operator()(const ast::BinaryOp<ast::Diff>& expr) const {
-        return get_difference(boost::apply_visitor(*this, expr.lhs),
-                              boost::apply_visitor(*this, expr.rhs));
+        return get_difference((*this)(expr.lhs), (*this)(expr.rhs));
     }
     Indexes operator()(const ast::BinaryOp<ast::Or>& expr) const {
-        auto res = boost::apply_visitor(*this, expr.lhs);
-        const auto other = boost::apply_visitor(*this, expr.rhs);
+        auto res = (*this)(expr.lhs);
+        const auto other = (*this)(expr.rhs);
         res.insert(boost::container::ordered_unique_range_t(), other.begin(), other.end());
         return res;
     }
+    Indexes operator()(const ast::Expr& expr) const { return boost::apply_visitor(*this, expr.expr); }
 };
 
-} // anonymous namespace
+}  // anonymous namespace
 
 ast::Expr parse(const std::string& request) {
     using boost::spirit::ascii::space;
@@ -269,10 +346,17 @@ ast::Expr parse(const std::string& request) {
 
     ast::Expr expr;
     auto iter = request.begin(), end = request.end();
-    if (phrase_parse(iter, end, grammar, space, expr)) {
-        if(iter != end) {
+    bool parse_ok;
+    try {
+        parse_ok = phrase_parse(iter, end, grammar, space, expr);
+    } catch (qi::expectation_failure<std::string::const_iterator>&) {
+        parse_ok = false;
+    }
+    if (parse_ok) {
+        if (iter != end) {
             const std::string unparsed(iter, end);
-            throw parsing_error(parsing_error::partial_error, "Filter: Unable to parse the whole string. Not parsed: >>" + unparsed + "<<");
+            throw parsing_error(parsing_error::partial_error,
+                                "Filter: Unable to parse the whole string. Not parsed: >>" + unparsed + "<<");
         }
     } else {
         throw parsing_error(parsing_error::global_error, "Filter: unable to parse " + request);
@@ -291,40 +375,39 @@ std::string make_request(const Type_e requested_type,
     std::string res = request.empty() ? std::string("all") : request;
 
     switch (requested_type) {
-    case Type_e::Line:
-        if (odt_level != OdtLevel_e::all) {
-            res = "(" + res + ") AND line.odt_level = " + to_string(odt_level);
-        }
-        break;
-    case Type_e::VehicleJourney:
-    case Type_e::Impact:
-        if (since && until) {
-            res = "(" + res + ") AND " +
-                static_data->captionByType(requested_type) + ".between(" +
-                to_iso_string(*since) + "Z, " + to_iso_string(*until) + "Z)";
-        } else if (since) {
-            res = "(" + res + ") AND " +
-                static_data->captionByType(requested_type) + ".since(" +
-                to_iso_string(*since) + "Z)";
-        } else if (until) {
-            res = "(" + res + ") AND " +
-                static_data->captionByType(requested_type) + ".until(" +
-                to_iso_string(*until) + "Z)";
-        }
-        break;
-    default: break;
+        case Type_e::Line:
+            if (odt_level != OdtLevel_e::all) {
+                res = "(" + res + ") AND line.odt_level = " + to_string(odt_level);
+            }
+            break;
+        case Type_e::VehicleJourney:
+        case Type_e::Impact:
+            if (since && until) {
+                res = "(" + res + ") AND " + static_data->captionByType(requested_type) + ".between("
+                      + to_iso_string(*since) + "Z, " + to_iso_string(*until) + "Z)";
+            } else if (since) {
+                res = "(" + res + ") AND " + static_data->captionByType(requested_type) + ".since("
+                      + to_iso_string(*since) + "Z)";
+            } else if (until) {
+                res = "(" + res + ") AND " + static_data->captionByType(requested_type) + ".until("
+                      + to_iso_string(*until) + "Z)";
+            }
+            break;
+        default:
+            break;
     }
 
     std::vector<std::string> forbidden;
-    for (const auto& id: forbidden_uris) {
+    for (const auto& id : forbidden_uris) {
         const auto type = data.get_type_of_id(id);
-        if (type == Type_e::Unknown) { continue; }
+        if (type == Type_e::Unknown) {
+            continue;
+        }
         std::stringstream ss;
         try {
             ss << static_data->captionByType(type);
-        } catch(std::out_of_range&) {
-            throw parsing_error(parsing_error::error_type::unknown_object,
-                                "Filter Unknown object type: " + id);
+        } catch (std::out_of_range&) {
+            throw parsing_error(parsing_error::error_type::unknown_object, "Filter Unknown object type: " + id);
         }
         ss << ".id = ";
         ast::print_quoted_string(ss, id);
@@ -341,7 +424,7 @@ std::string make_request(const Type_e requested_type,
         ss << ')';
         res = ss.str();
     }
-        
+
     return res;
 }
 
@@ -352,11 +435,13 @@ Indexes make_query_ng(const Type_e requested_type,
                       const boost::optional<boost::posix_time::ptime>& since,
                       const boost::optional<boost::posix_time::ptime>& until,
                       const type::Data& data) {
-    auto logger = log4cplus::Logger::getInstance("logger");
+    auto logger = log4cplus::Logger::getInstance("ptref");
     const auto request_ng = make_request(requested_type, request, forbidden_uris, odt_level, since, until, data);
     const auto expr = parse(request_ng);
-    LOG4CPLUS_DEBUG(logger, "ptref_ng parsed: " << expr);
-    return boost::apply_visitor(Eval(requested_type, data), expr);
+    LOG4CPLUS_TRACE(logger, "ptref_ng parsed: " << expr << " [requesting: "
+                                                << navitia::type::static_data::captionByType(requested_type) << "]");
+    return Eval(requested_type, data)(expr);
 }
 
-}} // namespace navitia::ptref
+}  // namespace ptref
+}  // namespace navitia

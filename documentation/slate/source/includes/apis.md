@@ -365,7 +365,7 @@ Example:
 <aside class="warning">
     On vehicle_journey this filter is applied using only the first stop time.
     On disruption this filter must intersect with one application period.
-    "since" is included and "until" is excluded.
+    "since" and "until" are included.
 </aside>
 
 #### disable_geojson
@@ -382,6 +382,20 @@ remove them, it's useful when searching lines that you don't want to display on 
 Examples :
 
 -   <https://api.navitia.io/v1/coverage/fr-idf/lines?disable_geojson=true>
+
+#### disable_disruption
+
+By default disruptions are also present in navitia's responses on apis "PtRef", "pt_objects" and "places_nearby".
+This parameter allows you to remove them, reducing the response size.
+
+<aside class="notice">
+    Disruptions can be large and not necessary while searching objects.
+    This parameter is mostly here to be able to search objects without disruptions in the response.
+</aside>
+
+Examples :
+
+-   <https://api.navitia.io/v1/coverage/fr-idf/lines?disable_disruption=true>
 
 ### <a name="filter"></a>Filter
 
@@ -546,42 +560,39 @@ Differents kind of objects can be returned (sorted as):
 
 Here is a typical use case. A traveler has to find a line between the
 1500 lines around Paris.
-For example, he could key without any filters:
 
-<div data-collapse>
-    <p>traveler input: "bob"</p>
-    <ul>
-        <li>network : "bobby network"</li>
-        <li>line : "bobby bus 1"</li>
-        <li>line : "bobby bus 2"</li>
-        <li>route : "bobby bus 1 to green"</li>
-        <li>route : "bobby bus 1 to rose"</li>
-        <li>route : "bobby bus 2 to yellow"</li>
-        <li>stop_area : "...</li>
-    </ul>
-</div>
-<div data-collapse>
-    <p>traveler input: "bobby met"</p>
-    <ul>
-        <li>line : "bobby metro 1"</li>
-        <li>line : "bobby metro 11"</li>
-        <li>line : "bobby metro 2"</li>
-        <li>line : "bobby metro 3"</li>
-        <li>route : "bobby metro 1 to Martin"</li>
-        <li>route : "bobby metro 1 to Mahatma"</li>
-        <li>route : "bobby metro 11 to Marcus"</li>
-        <li>route : "bobby metro 11 to Steven"</li>
-        <li>route : "...</li>
-    </ul>
-</div>
-<div data-collapse>
-    <p>traveler input: "bobby met 11" or "bobby metro 11"</p>
-    <ul>
-        <li>line : "bobby metro 11"</li>
-        <li>route : "bobby metro 11 to Marcus"</li>
-        <li>route : "bobby metro 11 to Steven"</li>
-    </ul>
-</div>
+#### Examples
+
+User could type one of the following without any filters:
+
+##### Traveler input "bob":
+
+-  network : "bobby network"
+-  line : "bobby bus 1"
+-  line : "bobby bus 2"
+-  route : "bobby bus 1 to green"
+-  route : "bobby bus 1 to rose"
+-  route : "bobby bus 2 to yellow"
+-  stop_area : "...
+
+##### Traveler input "bobby met":
+
+-  line : "bobby metro 1"
+-  line : "bobby metro 11"
+-  line : "bobby metro 2"
+-  line : "bobby metro 3"
+-  route : "bobby metro 1 to Martin"
+-  route : "bobby metro 1 to Mahatma"
+-  route : "bobby metro 11 to Marcus"
+-  route : "bobby metro 11 to Steven"
+-  route : "...
+
+##### Traveler input: "bobby met 11" or "bobby metro 11":
+
+-  line : "bobby metro 11"
+-  route : "bobby metro 11 to Marcus"
+-  route : "bobby metro 11 to Steven"
+
 
 ### Access
 
@@ -618,6 +629,8 @@ HTTP/1.1 200 OK
 -----------|----------|------------------|----------------------|-----------------
   yep      | q        | string           | The search term      |
   nop      | type[]   | array of string  | Type of objects you want to query It takes one the following values: [`network`, `commercial_mode`, `line`, `route`, `stop_area`] | [`network`, `commercial_mode`, `line`, `route`, `stop_area`]
+  nop      | disable_disruption | boolean  | Remove disruptions from the response  | False
+  nop      | depth    | int              | Json response [depth](#depth) | 1
 
 <aside class="warning">
 There is no pagination for this api
@@ -694,6 +707,7 @@ Differents kind of objects can be returned (sorted as):
   nop      | type[]      | array of string | Type of objects you want to query It takes one the following values: [`stop_area`, `address`, `administrative_region`, `poi`, `stop_point`] | [`stop_area`, `address`, `poi`, `administrative_region`]
   nop      | admin_uri[] | array of string | If filled, it will filter the search within the given admin uris
   nop      | disable_geojson | boolean | remove geojson from the response | False
+  nop      | depth       | int             | Json response [depth](#depth)     | 1
   nop      | from | string | Coordinates longitude;latitude used to prioritize the objects around this coordinate. Note this parameter will be taken into account only if the autocomplete's backend can handle it |
 
 
@@ -750,9 +764,11 @@ coordinates, returning a [places](#place) collection.
   nop      | admin_uri[] | array of string | If filled, will filter the search within the given admin uris       |
   nop      | filter      | string          | Use to filter returned objects. for example: places_type.id=theater |
   nop      | disable_geojson | boolean     | Remove geojson from the response  | False
+  nop      | disable_disruption | boolean  | Remove disruptions from the response  | False
   nop      | count       | int             | Elements per page                 | 10
+  nop      | depth       | int             | Json response [depth](#depth)     | 1
   nop      | start_page  | int             | The page number (cf the [paging section](#paging)) | 0
-  nop      | add_poi_infos[] | enum        | Activate the output of additional infomations about the poi. For example, parking availability (BSS, car parking etc.) in the pois of response. Pass `none` or `add_poi_infos[]=&` (empty string) to deactivate all.   | [`bss_stands`, `car_park`]
+  nop      | add_poi_infos[] | enum        | Activate the output of additional infomations about the poi. For example, parking availability (BSS, car parking etc.) in the pois of response. Pass `add_poi_infos[]=none&` or `add_poi_infos[]=&` (empty string) to deactivate all.   | [`bss_stands`, `car_park`]
 
 Filters can be added:
 
@@ -959,15 +975,18 @@ It will retrieve all the journeys from the resource (in order to make *[isochron
 The [isochrones](#isochrones) service exposes another response structure, which is simpler, for the same data.
 
 ### <a name="journeys-disruptions"></a> Disruptions
-By default, Navitia only computes journeys that don't have disruptions, disrupted journeys will not be reported into the response.
-If you want to provide journeys without blocking disruptions, you need to use the parameter `data_freshness=realtime`.
+By default, Navitia only computes journeys without their associated disruption(s), meaning that the journeys in the response will be based on the theoritical schedules. The disruption present in the response is for information only.
+If you want to provide journeys without blocking disruptions, you need to make an other request with the parameter `data_freshness=realtime`.
 
 In a journey's response, different disruptions may have different meanings.
 Each journey has a `status` attribute that indicates the most serious disruption effect.
 Disruptions are on the sections, the ones that impact the journey are in the sections's display_informations links  (`sections[].display_informations.links[]`).
 
-You might also have others disruptions in the response. They don't directly impact the journey, but might affect them. By example, some intermediate stops of a section can be
-disrupted, it doesn't prevent the journey from beeing executed but modifies it. These disruptions won't be on the `display_informations` of the sections or used in the journey's status.
+You might also have other disruptions in the response. They don't directly impact the journey, but might affect them.
+For example, some intermediate stops of a section can be disrupted, it doesn't prevent the journey from being realised but modifies it.
+These disruptions won't be on the `display_informations` of the sections or used in the journey's status.
+
+See how disruptions affect a journey in the [real time](#realtime) section.
 
 ### <a name="journeys-parameters"></a>Main parameters
 
@@ -977,18 +996,19 @@ disrupted, it doesn't prevent the journey from beeing executed but modifies it. 
 | nop       | to                      | id            | The id of the arrival of your journey. If none are provided an isochrone is computed   |               |
 | nop       | datetime                | [iso-date-time](#iso-date-time) | Date and time to go.<br>Note: the datetime must be in the [coverage's publication period](#coverage)                                                   | now           |
 | nop       | datetime_represents     | string        | Can be `departure` or `arrival`.<br>If `departure`, the request will retrieve journeys starting after datetime.<br>If `arrival` it will retrieve journeys arriving before datetime.                      | departure     |
-| nop       | <a name="traveler-type"></a>traveler_type | enum | Define speeds and accessibility values for different kind of people.<br>Each profile also automatically determines appropriate first and last section modes to the covered area. Note: this means that you might get car, bike, etc fallback routes even if you set `forbidden_uris[]`! You can overload all parameters (especially speeds, distances, first and last modes) by setting all of them specifically. We advise that you don't rely on the traveler_type's fallback modes (`first_section_mode[]` and `last_section_mode[]`) and set them yourself.<br><div data-collapse><p>enum values:</p><ul><li>standard</li><li>slow_walker</li><li>fast_walker</li><li>luggage</li><li>wheelchair</li></ul></div>| standard      |
-| nop       | data_freshness          | enum          | Define the freshness of data to use to compute journeys <ul><li>realtime</li><li>base_schedule</li></ul> _**when using the following parameter**_ "&data_freshness=base_schedule" <br> you can get disrupted journeys in the response. You can then display the disruption message to the traveler and make a realtime request to get a new undisrupted solution.   | base_schedule |
+| nop       | <a name="traveler-type"></a>traveler_type | enum | Define speeds and accessibility values for different kind of people.<br>Each profile also automatically determines appropriate first and last section modes to the covered area. Note: this means that you might get car, bike, etc fallback routes even if you set `forbidden_uris[]`! You can overload all parameters (especially speeds, distances, first and last modes) by setting all of them specifically.<br> We advise that you don't rely on the traveler_type's fallback modes (`first_section_mode[]` and `last_section_mode[]`) and set them yourself.<br>enum values:<ul><li>standard</li><li>slow_walker</li><li>fast_walker</li><li>luggage</li><li>wheelchair</li></ul>|               |
+| nop       | data_freshness          | enum          | Define the freshness of data to use to compute journeys <ul><li>realtime</li><li>base_schedule</li></ul> _**when using the following parameter**_ "&data_freshness=base_schedule" <br> you can get disrupted journeys in the response. You can then display the disruption message to the traveler and make a realtime request to get a new "undisrupted" solution (considering all disruptions during journey planning).   | base_schedule |
 | nop       | forbidden_uris[]        | id            | If you want to avoid lines, modes, networks, etc.</br> Note: the forbidden_uris[] concern only the public transport objects. You can't for example forbid the use of the bike with them, you have to set the fallback modes for this (`first_section_mode[]` and `last_section_mode[]`) |               |
 |nop        | allowed_id[]            | id            | If you want to use only a small subset of the public transport objects in your solution. The constraint intersects with `forbidden_uris[]`. For example, if you ask for `allowed_id[]=line:A&forbidden_uris[]=physical_mode:Bus`, only vehicles of the line A that are not buses will be used. | everything |
 | nop       | first_section_mode[]    | array of string   | Force the first section mode if the first section is not a public transport one. It takes the following values: `walking`, `car`, `bike`, `bss`, `ridesharing`.<br>It's an array, you can give multiple modes.<br><br>See [Ridesharing](#ridesharing-stuff) section for more details on that mode.<br>`bss` stands for bike sharing system.<br>Note: choosing `bss` implicitly allows the `walking` mode since you might have to walk to the bss station.<br> Note 2: The parameter is inclusive, not exclusive, so if you want to forbid a mode, you need to add all the other modes.<br> Eg: If you never want to use a `car`, you need: `first_section_mode[]=walking&first_section_mode[]=bss&first_section_mode[]=bike&last_section_mode[]=walking&last_section_mode[]=bss&last_section_mode[]=bike` | walking |
 | nop       | last_section_mode[]     | array of string   | Same as first_section_mode but for the last section  | walking     |
+| nop       | depth                   | int               | Json response [depth](#depth)                        | 1           |
 
 ### Other parameters
 
 | Required | Name            | Type    | Description                   | Default value |
 |----------|-----------------|---------|-------------------------------|---------------|
-| nop     | max_duration_to_pt   | int     | Maximum allowed duration to reach the public transport.<br>Use this to limit the walking/biking part.<br>Unit is seconds | 15*60 s    |
+| nop     | max_duration_to_pt   | int     | Maximum allowed duration to reach the public transport (same limit used before and after public transport).<br>Use this to limit the walking/biking part.<br>Unit is seconds | 30*60 s    |
 | nop     | walking_speed        | float   | Walking speed for the fallback sections<br>Speed unit must be in meter/seconds         | 1.12 m/s<br>(4 km/h)<br>*Yes, man, they got the metric system* |
 | nop     | bike_speed           | float   | Biking speed for the fallback<br>Speed unit must be in meter/seconds | 4.1 m/s<br>(14.7 km/h)   |
 | nop     | bss_speed            | float   | Speed while using a bike from a bike sharing system for the fallback sections<br>Speed unit must be in meter/seconds | 4.1 m/s<br>(14.7 km/h)    |
@@ -996,12 +1016,12 @@ disrupted, it doesn't prevent the journey from beeing executed but modifies it. 
 | nop     | min_nb_journeys      | non-negative int | Minimum number of different suggested journeys<br>More in multiple_journeys  |             |
 | nop     | max_nb_journeys      | positive int | Maximum number of different suggested journeys<br>More in multiple_journeys  |             |
 | nop     | count                | int     | Fixed number of different journeys<br>More in multiple_journeys  |             |
-| nop     | max_nb_tranfers      | int     | Maximum number of transfers in each journey  | 10          |
+| nop     | max_nb_transfers      | int     | Maximum number of transfers in each journey  | 10          |
 | nop     | min_nb_transfers     | int     | Minimum number of transfers in each journey  | 0           |
-| nop     | max_duration         | int     | Maximum duration of journeys in secondes. Really useful when computing an isochrone   | 86400       |
+| nop     | max_duration         | int     | Maximum duration of journeys in seconds (from `datetime` parameter).<br>More usefull when computing an isochrone (only `from` or `to` is provided).<br>On a classic journey (from-to), it will mostly speedup Navitia: You may have journeys a bit longer than that value (you would have to filter them).    | 86400       |
 | nop     | disruption_active    | boolean | For compatibility use only.<br>If true the algorithm take the disruptions into account, and thus avoid disrupted public transport.<br>Rq: `disruption_active=true` = `data_freshness=realtime` <br>Use `data_freshness` parameter instead       |  False     |
 | nop     | wheelchair           | boolean | If true the traveler is considered to be using a wheelchair, thus only accessible public transport are used<br>be warned: many data are currently too faint to provide acceptable answers with this parameter on       | False       |
-| nop     | direct_path          | enum    | Specify if direct paths should be suggested.<br>possible values: <ul><li>indifferent</li><li>none</li><li>only</li></ul>      | indifferent |
+| nop     | direct_path          | enum    | Specify if Navitia should suggest direct paths (= only fallback modes are used).<br>Possible values: <ul><li>`indifferent`</li><li>`none` for only journeys using some PT</li><li>`only` for only journeys without PT</li></ul>      | indifferent |
 | nop     | add_poi_infos[]      | boolean | Activate the output of additional infomations about the poi. For example, parking availability(BSS, car parking etc.) in the pois of response. Possible values are `bss_stands`, `car_park`    | []
 | nop     | debug                | boolean | Debug mode<br>No journeys are filtered in this mode     | False       |
 | nop     | free_radius_from     | int     | Radius length (in meters) around the coordinates of departure in which the stop points are considered free to go (crowfly=0) | 0           |
@@ -1035,7 +1055,7 @@ In this example, the stop points within the circle (SP1, SP2 et SP3) can be reac
 The journeys can only use allowed vehicle journeys (as present in the `public_transport` or `on_demand_transport` sections).
 They also can only use the allowed stop points for getting in or out of a vehicle (as present in the `street_network`, `transfer` and `crow_fly` sections).
 
-For filtering vehicle journeys, the identifier of a line, route, commercial mode, physical mode or network can be used. 
+To filter vehicle journeys, the identifier of a line, route, commercial mode, physical mode or network can be used.
 
 For filtering stop points, the identifier of a stop point or stop area can be used.
 
@@ -1100,7 +1120,7 @@ Here is a typical journey, all sections are detailed below
   type                | *enum* string                | Used to qualify a journey. See the [journey-qualification](#journey-qualification-process) section for more information
   fare                | [fare](#fare)                | Fare of the journey (tickets and price)
   tags                | array of string              | List of tags on the journey. The tags add additional information on the journey beside the journey type. See for example [multiple_journeys](#multiple-journeys).
-  status              | *enum*                       | Status from the whole journey taking into acount the most disturbing information retrieved on every object used. Can be: <ul><li>NO_SERVICE</li><li>REDUCED_SERVICE</li><li>SIGNIFICANT_DELAYS</li><li>DETOUR</li><li>ADDITIONAL_SERVICE</li><li>MODIFIED_SERVICE</li><li>OTHER_EFFECT</li><li>UNKNOWN_EFFECT</li><li>STOP_MOVED</li></ul> In order to get a undisrupted journey, you just have to add a *&data_freshness=realtime* parameter
+  status              | *enum*                       | Status from the whole journey taking into acount the most disturbing information retrieved on every object used. Can be: <ul><li>NO_SERVICE</li><li>REDUCED_SERVICE</li><li>SIGNIFICANT_DELAYS</li><li>DETOUR</li><li>ADDITIONAL_SERVICE</li><li>MODIFIED_SERVICE</li><li>OTHER_EFFECT</li><li>UNKNOWN_EFFECT</li><li>STOP_MOVED</li></ul> In order to get an "undisrupted" journey (consider all disruptions during journey planning), you just have to add a *&data_freshness=realtime* parameter.
 
 <aside class="notice">
     When used with just a "from" or a "to" parameter, it will not contain any sections.
@@ -1110,7 +1130,7 @@ Here is a typical journey, all sections are detailed below
 
 Field                    | Type                                          | Description
 -------------------------|-----------------------------------------------|------------
-type                     | *enum* string                                 | <div data-collapse><p>Type of the section.</p><ul><li>`public_transport`: public transport section</li><li>`street_network`: street section</li><li>`waiting`: waiting section between transport</li><li><p>`stay_in`: this “stay in the vehicle” section occurs when the traveller has to stay in the vehicle when the bus change its routing. Here is an exemple for a journey from A to B: (lollipop line)</p><p>![image](stay_in.png)</p></li><li>`transfer`: transfert section</li><li><p>`crow_fly`: teleportation section, most of the time. Useful to make navitia idempotent when starting from or arriving to a city or a stop_area (“potato shaped” objects) in order to route to the nearest stop_point. Be careful: neither “path” nor “geojson” available in a crow_fly section.</p><p> Can also be used when no street_network data are available and not be considered as teleportation. The distance of such a crow_fly section will be a straight line between the point of departure and arrival (hence the name 'crow_fly'). The duration of the section will be calculated with the Manhattan distance of the section (distance x √2). In this case, “geojson” is available.</p><p>![image](crow_fly.png)</p></li><li>`on_demand_transport`: vehicle may not drive along: traveler will have to call agency to confirm journey</li><li>`bss_rent`: taking a bike from a bike sharing system (bss)</li><li>`bss_put_back`: putting back a bike from a bike sharing system (bss)</li><li>`boarding`: boarding on plane</li><li>`landing`: landing off the plane</li><li>`alighting`: getting off a vehicle (boat, on-demand-transport, plane, ...)</li><li>`park`: parking a car</li><li>`ridesharing`: car-pooling section</li></ul></div>
+type                     | *enum* string                                 | Type of the section.<ul><li>`public_transport`: public transport section</li><li>`street_network`: street section</li><li>`waiting`: waiting section between transport</li><li><p>`stay_in`: this “stay in the vehicle” section occurs when the traveller has to stay in the vehicle when the bus change its routing. Here is an exemple for a journey from A to B: (lollipop line)</p><p>![image](stay_in.png)</p></li><li>`transfer`: transfert section</li><li><p>`crow_fly`: teleportation section, most of the time. Useful to make navitia idempotent when starting from or arriving to a city or a stop_area (“potato shaped” objects) in order to route to the nearest stop_point. Be careful: neither “path” nor “geojson” available in a crow_fly section.</p><p> Can also be used when no street_network data are available and not be considered as teleportation. The distance of such a crow_fly section will be a straight line between the point of departure and arrival (hence the name 'crow_fly'). The duration of the section will be calculated with the Manhattan distance of the section (distance x √2). In this case, “geojson” is available.</p><p>![image](crow_fly.png)</p></li><li>`on_demand_transport`: vehicle may not drive along: traveler will have to call agency to confirm journey</li><li>`bss_rent`: taking a bike from a bike sharing system (bss)</li><li>`bss_put_back`: putting back a bike from a bike sharing system (bss)</li><li>`boarding`: boarding on plane</li><li>`landing`: landing off the plane</li><li>`alighting`: getting off a vehicle (boat, on-demand-transport, plane, ...)</li><li>`park`: parking a car</li><li>`ridesharing`: car-pooling section</li></ul>
 id                       | string                                        | Id of the section
 mode                     | *enum* string                                 | Mode of the street network: `Walking`, `Bike`, `Car`
 duration                 | int                                           | Duration of this section
@@ -1152,8 +1172,8 @@ direction       | int                    | Angle (in degree) between the previou
 
 |Field|Type|Description|
 |-----|----|-----------|
-|value|float|cost|
-|currency|string|currency|
+|value|string|cost: float formatted as string|
+|currency|string|currency as specified in input data|
 
 #### Ticket
 
@@ -1421,6 +1441,7 @@ Required | Name               | Type      | Description                         
 ---------|--------------------|-----------|------------------------------------------------------------------------------------------|--------------
 nop      | from_datetime      | [iso-date-time](#iso-date-time) | The date_time from which you want the schedules                    |
 nop      | duration           | int       | Maximum duration in seconds between from_datetime and the retrieved datetimes.           | 86400
+nop      | depth              | int       | Json response [depth](#depth)                                                            | 1
 nop      | items_per_schedule | int       | Maximum number of columns per schedule.                                                  |
 nop      | forbidden_uris[]   | id        | If you want to avoid lines, modes, networks, etc.                                        |
 nop      | data_freshness     | enum      | Define the freshness of data to use<br><ul><li>realtime</li><li>base_schedule</li></ul>  | base_schedule
@@ -1538,6 +1559,8 @@ one of [note](#note).
 [Context](#context) object provides the `current_datetime`, useful to compute waiting time when requesting Navitia without a `from_datetime`.
 You can access it via that kind of url: <https://api.navitia.io/v1/{a_path_to_a_resource}/stop_schedules>
 
+See how disruptions affect stop schedules in the [real time](#realtime) section.
+
 ### Accesses
 
 | url | Result |
@@ -1548,14 +1571,15 @@ You can access it via that kind of url: <https://api.navitia.io/v1/{a_path_to_a_
 
 ### Parameters
 
-Required | Name           | Type                    | Description        | Default Value
----------|----------------|-------------------------|--------------------|--------------
-nop      | from_datetime  | [iso-date-time](#iso-date-time) | The date_time from which you want the schedules |
-nop      | duration         | int                            | Maximum duration in seconds between from_datetime and the retrieved datetimes.                            | 86400
-nop      | forbidden_uris[] | id                             | If you want to avoid lines, modes, networks, etc.    |
-nop      | items_per_schedule | int       | Maximum number of datetimes per schedule.                                                  |
-nop      | data_freshness   | enum                           | Define the freshness of data to use to compute journeys <ul><li>realtime</li><li>base_schedule</li></ul> | base_schedule
-nop      | disable_geojson | boolean                | remove geojson fields from the response | False
+Required | Name               | Type                            | Description        | Default Value
+---------|--------------------|---------------------------------|--------------------|--------------
+nop      | from_datetime      | [iso-date-time](#iso-date-time) | The date_time from which you want the schedules |
+nop      | duration           | int                             | Maximum duration in seconds between from_datetime and the retrieved datetimes.                            | 86400
+nop      | depth              | int                             | Json response [depth](#depth) | 1
+nop      | forbidden_uris[]   | id                              | If you want to avoid lines, modes, networks, etc.    |
+nop      | items_per_schedule | int                             | Maximum number of datetimes per schedule.                                                  |
+nop      | data_freshness     | enum                            | Define the freshness of data to use to compute journeys <ul><li>realtime</li><li>base_schedule</li></ul> | realtime
+nop      | disable_geojson    | boolean                         | remove geojson fields from the response | False
 
 
 ### <a name="stop-schedule"></a>Stop_schedule object
@@ -1566,7 +1590,7 @@ nop      | disable_geojson | boolean                | remove geojson fields from
 |route|[route](#route)|The route of the schedule|
 |date_times|Array of [pt-date-time](#pt-date-time)|When does a bus stops at the stop point|
 |stop_point|[stop_point](#stop-point)|The stop point of the schedule|
-|additional_informations|[additional_informations](#additional-informations)|Other informations, when no departures <div data-collapse><p>enum values:</p><ul><li>date_out_of_bounds</li><li>terminus</li><li>partial_terminus</li><li>active_disruption</li><li>no_departures_known</li></ul></div>|
+|additional_informations|[additional_informations](#additional-informations)|Other informations, when no departures<br> enum values:<ul><li>date_out_of_bounds</li><li>terminus</li><li>partial_terminus</li><li>active_disruption</li><li>no_departures_known</li></ul>|
 
 
 <a name="departures"></a>Departures
@@ -1636,6 +1660,8 @@ object.
 Departures are ordered chronologically in ascending order as:
 ![departures](https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Display_at_bus_stop_sign_in_Karlovo_n%C3%A1m%C4%9Bst%C3%AD%2C_T%C5%99eb%C3%AD%C4%8D%2C_T%C5%99eb%C3%AD%C4%8D_District.JPG/640px-Display_at_bus_stop_sign_in_Karlovo_n%C3%A1m%C4%9Bst%C3%AD%2C_T%C5%99eb%C3%AD%C4%8D%2C_T%C5%99eb%C3%AD%C4%8D_District.JPG)
 
+See how disruptions affect the next departures in the [real time](#realtime) section.
+
 
 ### Accesses
 
@@ -1651,7 +1677,8 @@ Required | Name             | Type                            | Description     
 nop      | from_datetime    | [iso-date-time](#iso-date-time) | The date_time from which you want the schedules                                                          | the current datetime
 nop      | duration         | int                             | Maximum duration in seconds between from_datetime and the retrieved datetimes.                           | 86400
 nop      | count            | int                             | Maximum number of results.                                                                               | 10
-nop      | forbidden_uris[] | id                              | If you want to avoid lines, modes, networks, etc.                                                        | 
+nop      | depth            | int                             | Json response [depth](#depth)                                                                            | 1
+nop      | forbidden_uris[] | id                              | If you want to avoid lines, modes, networks, etc.                                                        |
 nop      | data_freshness   | enum                            | Define the freshness of data to use to compute journeys <ul><li>realtime</li><li>base_schedule</li></ul> | realtime
 nop      | disable_geojson  | boolean                         | remove geojson fields from the response                                                                  | false
 
@@ -1756,7 +1783,7 @@ HTTP/1.1 200 OK
 
 ```
 
-This service provides the state of public transport traffic, grouped by lines and all their stops. 
+This service provides the state of public transport traffic, grouped by lines and all their stops.
 It can be called for an overall coverage or for a specific object.
 
 <img src="./images/traffic_reports.png" alt="Traffic reports" width="300"/>
@@ -1776,11 +1803,13 @@ For example:
 
 Required | Name             | Type                            | Description                                       | Default Value
 ---------|------------------|---------------------------------|---------------------------------------------------|--------------
-no       | since            | [iso-date-time](#iso-date-time) | Only display disruptions active after this date   |
-no       | until            | [iso-date-time](#iso-date-time) | Only display disruptions active before this date  |
-no       | count            | int                             | Maximum number of results.                        | 10
+no       | since            | [iso-date-time](#iso-date-time) | Only display active disruptions after this date   |
+no       | until            | [iso-date-time](#iso-date-time) | Only display active disruptions before this date  |
+no       | count            | int                             | Maximum number of results.                        | 25
+no       | depth            | int                             | Json response [depth](#depth)                     | 1
 no       | forbidden_uris[] | id                              | If you want to avoid lines, modes, networks, etc. |
 no       | disable_geojson  | boolean                         | remove geojson fields from the response           | false
+no       | tags[]           | array of string                 | Filter disruptions with the given tags            |
 
 The response is made of an array of [line_reports](#line-reports),
 and another one of [disruptions](#disruption).
@@ -1864,7 +1893,7 @@ see the [inner-reference](#inner-references) section to use them.
 Line_reports is an array of some line_report object.
 
 One Line_report object is a complex object, made of a line, and an array
-of [pt_objects](#pt-objects) linked (for example stop_areas, stop_point or network). 
+of [pt_objects](#pt-objects) linked (for example stop_areas, stop_point or network).
 
 #### What a **complete** response **means**
 
@@ -1890,7 +1919,7 @@ Details for disruption objects : [disruptions](#disruptions)
 
 -   1 line which is the grouping object
     -   it can contain links to its disruptions.  
-    These disruptions are globals and might not be applied on stop_areas and stop_points. 
+    These disruptions are globals and might not be applied on stop_areas and stop_points.
 -   1..n pt_objects
     -   each one contains at least a link to its disruptions.
 
@@ -1936,11 +1965,24 @@ For example:
 
 -   overall public transport traffic report on Ile de France coverage
     -   <https://api.navitia.io/v1/coverage/fr-idf/traffic_reports>
+-   overall public transport traffic report on Ile de France coverage with disruptions having tags passed in parameter values
+    -   <https://api.navitia.io/v1/coverage/fr-idf/traffic_reports?tags[]=incident&tags[]=alert>
 -   Is there any perturbations on the RER network ?
     -   <https://api.navitia.io/v1/coverage/fr-idf/networks/network:RER/traffic_reports>
+-   Is there any perturbations on the RER network with disruptions having tags passed in parameter values ?
+    -   <https://api.navitia.io/v1/coverage/fr-idf/networks/network:RER/traffic_reports?tags[]=incident&tags[]=alert>
 -   Is there any perturbations on the "RER A" line ?
     -   <https://api.navitia.io/v1/coverage/fr-idf/networks/network:RER/lines/line:OIF:810:AOIF741/line_reports?>
 
+Required | Name             | Type                            | Description                                         | Default Value
+---------|------------------|---------------------------------|-----------------------------------------------------|--------------
+no       | since            | [iso-date-time](#iso-date-time) | Only display active disruptions after this date     |
+no       | until            | [iso-date-time](#iso-date-time) | Only display active disruptions before this date    |
+no       | count            | int                             | Maximum number of results.                          | 10
+no       | depth            | int                             | Json response [depth](#depth)                       | 1
+no       | forbidden_uris[] | id                              | If you want to avoid lines, modes, networks, etc.   |
+no       | disable_geojson  | boolean                         | remove geojson fields from the response             | false
+no       | tags[]           | array of string                 | Filter disruptions with the given tags              |
 
 The response is made of an array of [traffic_reports](#traffic-reports),
 and another one of [disruptions](#disruption).
@@ -2113,3 +2155,75 @@ Details for disruption objects : [disruptions](#disruptions)
 -   0..n stop_areas
     -   each stop_area contains at least a link to its disruptions  
     If a stop_area is used by multiple networks, it will appear each time.
+
+
+Equipment_Reports
+---------------------------------------------
+``` shell
+#request
+$ curl 'http://api.navitia.io/v1/coverage/sandbox/equipment_reports' -H 'Authorization: 3b036afe-0110-4202-b9ed-99718476c2e0'
+```
+
+``` shell
+# response, composed by 1 main list: "equipment_reports"
+HTTP/1.1 200 OK
+
+{
+    "equipment_reports": [
+        {
+            "line": {15 items},
+            "stop_area_equipments": [
+                {  
+                    "equipment_details": [
+                        {
+                            "current_availability": {
+                                "cause": {
+                                    "label": "engineering work in progress"
+                                },
+                                "effect": {
+                                    "label": "platform 3 available via stairs only"
+                                },
+                                "periods": [
+                                    {
+                                        "begin": "20190216T000000",
+                                        "end": "20190601T220000"
+                                    }
+                                ],
+                                "status": "unavailable",
+                                "updated_at": "2019-05-17T15:54:53+02:00"
+                            }
+                        "embedded_type": "escalator",
+                        "id": "2702",
+                        "name": "du quai direction Vaulx-en-Velin La Soie  jusqu'à la sortie B",
+                        },
+                    ]
+                    "stop_area": {9 items},
+                },
+            ]
+        },
+    ],
+}
+```
+
+Also known as the `"/equipment_reports"` service.
+
+This service provides the state of equipments such as lifts or elevators that are giving you better accessibility to public transport facilities.
+The endpoint will report accessible equipement per stop area and per line. Which means that an equipment detail is reported at the stop area level, with all stop areas gathered on a per line basis.
+Some of the fields (cause, effect, periods etc...) are only displayed if a realtime equipment provider is setup with available data. Otherwise, only information provided by the NTFS will be reported.
+For more information, refer to [equipment-reports](#equipment-reports) API description.
+
+<aside class="warning">
+    This feature requires a specific configuration from a equipment service provider.
+    Therefore this service is not available by default.
+</aside>
+
+### Parameters
+
+
+Required | Name             | Type   | Description                                        | Default Value
+---------|------------------|--------|----------------------------------------------------|--------------
+no       | count            | int    | Elements per page                                  | 10
+no       | depth            | int    | Json response [depth](#depth)                      | 1
+no       | filter           | string | A [filter](#filter) to refine your request         |
+no       | forbidden_uris[] | id     | If you want to avoid lines, modes, networks, etc.  |
+no       | start_page       | int    | The page number (cf the [paging section](#paging)) | 0

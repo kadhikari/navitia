@@ -28,16 +28,18 @@
 # www.navitia.io
 
 from __future__ import absolute_import, print_function, division
+from contextlib import closing
 from tyr import app, db
 import os
 import pytest
 import tempfile
 import shutil
 
+# TODO : need to clean that after full migration to python3
 try:
     import ConfigParser
 except:
-    import configparser as ConfigParser
+    import configparser as ConfigParser  # type: ignore
 
 from tests.docker_wrapper import PostgresDocker
 
@@ -47,7 +49,7 @@ def docker():
     """
     a docker providing a database is started once for all tests
     """
-    with PostgresDocker() as database:
+    with closing(PostgresDocker()) as database:
         yield database
 
 
@@ -57,10 +59,8 @@ def init_flask_db(docker):
     when the docker is started, we init flask once for the new database
     """
     db_url = 'postgresql://{user}:{pwd}@{host}/{dbname}'.format(
-                user=docker.USER,
-                pwd=docker.PWD,
-                host=docker.ip_addr,
-                dbname=docker.DBNAME)
+        user=docker.USER, pwd=docker.PWD, host=docker.ip_addr, dbname=docker.DBNAME
+    )
 
     # re-init the db by overriding the db_url
     app.config['SQLALCHEMY_DATABASE_URI'] = db_url
@@ -99,11 +99,22 @@ def init_instances_dir():
     """
     instance_dir = tempfile.mkdtemp(prefix='instance_')
     fr_backup_dir = tempfile.mkdtemp(prefix='backup_fr_', dir=instance_dir)
-    create_instance_config_file(instance_dir=instance_dir,
-                                backup_dir=fr_backup_dir,
-                                name='fr')
+    create_instance_config_file(instance_dir=instance_dir, backup_dir=fr_backup_dir, name='fr')
     app.config['INSTANCES_DIR'] = instance_dir
 
     yield
 
     shutil.rmtree(instance_dir)
+
+
+@pytest.fixture(scope="function", autouse=False)
+def init_cities_dir():
+    """
+    Create a temp dir of an instance with its config file
+    """
+    cities_dir = tempfile.mkdtemp(prefix='cities_')
+    app.config['CITIES_OSM_FILE_PATH'] = cities_dir
+
+    yield
+
+    shutil.rmtree(cities_dir)

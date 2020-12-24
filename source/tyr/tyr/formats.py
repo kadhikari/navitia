@@ -27,6 +27,7 @@
 # https://groups.google.com/d/forum/navitia
 # www.navitia.io
 
+
 def parse_error(error):
     res = None
     try:
@@ -35,46 +36,52 @@ def parse_error(error):
         res = str(error).replace("\n", " ")
     return res.decode('utf-8', 'backslashreplace')
 
+
 poi_type_format = {
     'type': 'object',
-    'properties': {
-        'id': {'type': 'string'},
-        'name': {'type': 'string'}
-    },
-    'required': ['id', 'name']
+    'properties': {'id': {'type': 'string'}, 'name': {'type': 'string'}},
+    'required': ['id', 'name'],
 }
 
 key_value_format = {
     'type': 'object',
-    'properties': {
-        'key': {'type': 'string'},
-        'value': {'type': 'string'}
-    },
-    'required': ['key', 'value']
+    'properties': {'key': {'type': 'string'}, 'value': {'type': 'string'}},
+    'required': ['key', 'value'],
 }
 
 rule_format = {
     'type': 'object',
     'properties': {
-        'osm_tags_filters': {
-            'type': 'array',
-            'items': key_value_format},
-        'poi_type_id': {'type': 'string'}
+        'osm_tags_filters': {'type': 'array', 'items': key_value_format},
+        'poi_type_id': {'type': 'string'},
     },
-    'required': ['osm_tags_filters', 'poi_type_id']
+    'required': ['osm_tags_filters', 'poi_type_id'],
 }
 
 poi_type_conf_format = {
     'type': 'object',
     'properties': {
-        'poi_types': {
-            'type': 'array',
-            'items': poi_type_format,
-        },
-        'rules': {
-            'type': 'array',
-            'items': rule_format
-        }
+        'poi_types': {'type': 'array', 'items': poi_type_format},
+        'rules': {'type': 'array', 'items': rule_format},
     },
-    'required': ['poi_types', 'rules']
+    'required': ['poi_types', 'rules'],
+}
+
+equipments_provider_format = {
+    'type': 'object',
+    'properties': {
+        'klass': {'type': 'string'},
+        'args': {
+            'type': 'object',
+            'properties': {
+                'url': {'type': 'string'},
+                'timeout': {'type': 'number'},
+                'circuit_breaker_max_fail': {'type': 'number'},
+                'circuit_breaker_reset_timeout': {'type': 'number'},
+            },
+            'required': ['url'],
+        },
+        'discarded': {'type': 'boolean'},
+    },
+    'required': ['klass', 'args'],
 }

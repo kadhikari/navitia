@@ -42,10 +42,11 @@ def kill_thread(signal, frame):
     i_manager.stop()
     sys.exit(0)
 
+
 manager = Manager(app)
 
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, kill_thread)
     signal.signal(signal.SIGTERM, kill_thread)
-    app.config['DEBUG'] = True
+    app.config[str('DEBUG')] = True
     manager.run()

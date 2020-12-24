@@ -43,8 +43,6 @@ int main(int argc, const char* const argv[]) {
 
     ed::builder b = {"20140614"};
 
-    b.generate_dummy_basis();
-
     b.vj("A")("stopA", "08:00"_t)("stopB", "10:00"_t);
     b.vj("A")("stopA", "10:00"_t)("stopB", "12:00"_t);
     b.vj("B")("stopA", "09:00"_t)("stopC", "10:00"_t);
@@ -61,19 +59,16 @@ int main(int argc, const char* const argv[]) {
     b.connection("stopS", "stopS", 0);
 
     b.connection("stopT", "stopT", 0);
-    b.vj("U", "11111111", "", true, "", "", "physical_mode:Tram")("stopT", "19:00"_t)("stopU", "19:30"_t); //Tram
-    b.vj("V", "11111111", "", true, "", "", "physical_mode:Bus")("stopU", "19:30"_t)("stopV", "20:00"_t); //Bus
-    b.vj("W", "11111111", "", true, "", "", "physical_mode:Bus")("stopV", "20:00"_t)("stopW", "20:30"_t); //Bus
+    b.vj("U", "11111111", "", true, "", "", "physical_mode:Tramway")("stopT", "19:00"_t)("stopU", "19:30"_t);  // Tram
+    b.vj("V", "11111111", "", true, "", "", "physical_mode:Bus")("stopU", "19:30"_t)("stopV", "20:00"_t);      // Bus
+    b.vj("W", "11111111", "", true, "", "", "physical_mode:Bus")("stopV", "20:00"_t)("stopW", "20:30"_t);      // Bus
 
     b.connection("stopU", "stopU", 0);
     b.connection("stopV", "stopV", 0);
-    b.vj("PW", "11111111", "", true, "", "", "physical_mode:Bus")("stopP", "15:00"_t)("stopW", "21:00"_t); //Bus
+    b.vj("PW", "11111111", "", true, "", "", "physical_mode:Bus")("stopP", "15:00"_t)("stopW", "21:00"_t);  // Bus
 
-    b.data->pt_data->sort_and_index();
-    b.data->build_raptor();
-    b.data->build_uri();
+    b.make();
 
-    mock_kraken kraken(b, "main_stif_test", argc, argv);
+    mock_kraken kraken(b, argc, argv);
     return 0;
 }
-

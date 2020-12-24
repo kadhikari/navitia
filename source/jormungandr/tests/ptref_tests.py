@@ -30,6 +30,7 @@
 from __future__ import absolute_import, print_function, unicode_literals, division
 from six.moves.urllib.parse import quote, quote_plus
 from .check_utils import journey_basic_query
+from six.moves.urllib.parse import urlencode
 from .tests_mechanism import dataset, AbstractTestFixture
 from .check_utils import *
 from six.moves import range
@@ -40,6 +41,7 @@ class TestPtRef(AbstractTestFixture):
     """
     Test the structure of the ptref response
     """
+
     @staticmethod
     def _test_links(response, pt_obj_name):
         # Test the validity of links of 'previous', 'next', 'last', 'first'
@@ -64,13 +66,11 @@ class TestPtRef(AbstractTestFixture):
         for l in wanted_links[1:]:
             assert url_dict == _get_dict_to_compare(l)
 
-
     def test_pagination_links_with_count(self):
         response = self.query_region("stop_points?count=2&start_page=2", display=True)
         for link in response['links']:
             if link['type'] in ('previous', 'next', 'first', 'last'):
                 assert 'count=2' in link['href']
-
 
     def test_vj_default_depth(self):
         """default depth is 1"""
@@ -83,7 +83,7 @@ class TestPtRef(AbstractTestFixture):
 
         assert len(vjs) == 3
         vj = vjs[0]
-        assert vj['id'] == 'vj1'
+        assert vj['id'] == 'vehicle_journey:vj1'
 
         assert len(vj['stop_times']) == 2
 
@@ -100,7 +100,7 @@ class TestPtRef(AbstractTestFixture):
         assert vj['stop_times'][1]['utc_arrival_time'] == '111000'
         assert vj['stop_times'][1]['utc_departure_time'] == '111000'
 
-        #we added some comments on the vj, we should have them
+        # we added some comments on the vj, we should have them
         com = get_not_null(vj, 'comments')
         assert len(com) == 1
         assert com[0]['type'] == 'standard'
@@ -111,16 +111,16 @@ class TestPtRef(AbstractTestFixture):
         for feed_publisher in feed_publishers:
             is_valid_feed_publisher(feed_publisher)
         feed_publisher = feed_publishers[1]
-        assert (feed_publisher["id"] == "c1")
-        assert (feed_publisher["name"] == "name-c1")
-        assert (feed_publisher["license"] == "ls-c1")
-        assert (feed_publisher["url"] == "ws-c1")
+        assert feed_publisher["id"] == "c1"
+        assert feed_publisher["name"] == "name-c1"
+        assert feed_publisher["license"] == "ls-c1"
+        assert feed_publisher["url"] == "ws-c1"
 
         feed_publisher = feed_publishers[0]
-        assert (feed_publisher["id"] == "builder")
-        assert (feed_publisher["name"] == "canal tp")
-        assert (feed_publisher["license"] == "ODBL")
-        assert (feed_publisher["url"] == "www.canaltp.fr")
+        assert feed_publisher["id"] == "builder"
+        assert feed_publisher["name"] == "canal tp"
+        assert feed_publisher["license"] == "ODBL"
+        assert feed_publisher["url"] == "www.canaltp.fr"
         self.check_context(response)
 
     def test_vj_depth_0(self):
@@ -208,7 +208,7 @@ class TestPtRef(AbstractTestFixture):
 
         messages = get_not_null(disruptions[0], 'messages')
 
-        assert(messages[0]['text']) == 'Disruption on StopArea stop_area:stop1'
+        assert (messages[0]['text']) == 'Disruption on StopArea stop_area:stop1'
         self.check_context(response)
         assert response['context']['timezone'] == timezone
         assert response['context']['current_datetime'] == local_date_time
@@ -222,10 +222,9 @@ class TestPtRef(AbstractTestFixture):
         assert len(contributors) == 1
 
         ctr = contributors[0]
-        assert(ctr["id"] == 'c1')
-        assert(ctr["website"] == 'ws-c1')
-        assert(ctr["license"] == 'ls-c1')
-
+        assert ctr["id"] == 'c1'
+        assert ctr["website"] == 'ws-c1'
+        assert ctr["license"] == 'ls-c1'
 
     def test_datasets(self):
         """test dataset formating"""
@@ -236,9 +235,9 @@ class TestPtRef(AbstractTestFixture):
         assert len(datasets) == 1
 
         ds = datasets[0]
-        assert(ds["id"] == 'd1')
-        assert(ds["description"] == 'desc-d1')
-        assert(ds["system"] == 'sys-d1')
+        assert ds["id"] == 'd1'
+        assert ds["description"] == 'desc-d1'
+        assert ds["system"] == 'sys-d1'
 
     def test_contributor_by_dataset(self):
         """test contributor by dataset formating"""
@@ -247,9 +246,9 @@ class TestPtRef(AbstractTestFixture):
         assert len(ctrs) == 1
 
         ctr = ctrs[0]
-        assert(ctr["id"] == 'c1')
-        assert(ctr["website"] == 'ws-c1')
-        assert(ctr["license"] == 'ls-c1')
+        assert ctr["id"] == 'c1'
+        assert ctr["website"] == 'ws-c1'
+        assert ctr["license"] == 'ls-c1'
 
     def test_dataset_by_contributor(self):
         """test dataset by contributor formating"""
@@ -259,7 +258,7 @@ class TestPtRef(AbstractTestFixture):
         assert len(frs) == 1
 
         fr = frs[0]
-        assert(fr["id"] == 'd1')
+        assert fr["id"] == 'd1'
 
     def test_line(self):
         """test line formating"""
@@ -274,7 +273,7 @@ class TestPtRef(AbstractTestFixture):
         is_valid_line(l, depth_check=1)
 
         assert l["text_color"] == 'FFD700'
-        #we know we have a geojson for this test so we can check it
+        # we know we have a geojson for this test so we can check it
         geo = get_not_null(l, 'geojson')
         shape(geo)
 
@@ -307,7 +306,7 @@ class TestPtRef(AbstractTestFixture):
         assert len(lines) == 3
         l = lines[0]
         is_valid_line(l, depth_check=1)
-        #we don't want a geojson since we have desactivate them
+        # we don't want a geojson since we have desactivate them
         assert 'geojson' not in l
 
         response = self.query_region("lines")
@@ -317,7 +316,7 @@ class TestPtRef(AbstractTestFixture):
         l = lines[0]
         is_valid_line(l, depth_check=1)
 
-        #we check our geojson, just to be safe :)
+        # we check our geojson, just to be safe :)
         assert 'geojson' in l
         geo = get_not_null(l, 'geojson')
         shape(geo)
@@ -341,7 +340,7 @@ class TestPtRef(AbstractTestFixture):
     def test_line_groups(self):
         """test line group formating"""
         # Test for each possible range to ensure main_line is always at a depth of 0
-        for depth in range(0,3):
+        for depth in range(0, 3):
             response = self.query_region("line_groups?depth={0}".format(depth))
 
             line_groups = get_not_null(response, 'line_groups')
@@ -379,7 +378,7 @@ class TestPtRef(AbstractTestFixture):
         assert d["status"] == "active"
 
         messages = get_not_null(d, 'messages')
-        assert(messages[0]['text']) == 'Disruption on Line line:A'
+        assert (messages[0]['text']) == 'Disruption on Line line:A'
 
     def test_line_codes(self):
         """test line formating"""
@@ -409,7 +408,7 @@ class TestPtRef(AbstractTestFixture):
         r = r[0]
         is_valid_route(r, depth_check=1)
 
-        #we know we have a geojson for this test so we can check it
+        # we know we have a geojson for this test so we can check it
         geo = get_not_null(r, 'geojson')
         shape(geo)
 
@@ -462,7 +461,7 @@ class TestPtRef(AbstractTestFixture):
 
         assert len(stops) == 3
 
-        s = next((s for s in stops if s['name'] == 'stop_area:stop2'))# yes, that's a stop_point
+        s = next((s for s in stops if s['name'] == 'stop_area:stop2'))  # yes, that's a stop_point
         is_valid_stop_point(s, depth_check=2)
 
         com = get_not_null(s, 'comments')
@@ -479,28 +478,11 @@ class TestPtRef(AbstractTestFixture):
 
         self._test_links(response, 'stop_points')
 
-    def test_company_default_depth(self):
-        """default depth is 1"""
-        response = self.query_region("companies")
-
-        companies = get_not_null(response, 'companies')
-
-        for company in companies:
-            is_valid_company(company, depth_check=1)
-
-        #we check afterward that we have the right data
-        #we know there is only one vj in the dataset
-        assert len(companies) == 1
-        company = companies[0]
-        assert company['id'] == 'CMP1'
-
-        self._test_links(response, 'companies')
-
     def test_simple_crow_fly(self):
         journey_basic_query = "journeys?from=9;9.001&to=stop_area%3Astop2&datetime=20140105T000000"
         response = self.query_region(journey_basic_query)
 
-        #the response must be still valid (this test the kraken data reloading)
+        # the response must be still valid (this test the kraken data reloading)
         self.is_valid_journey_response(response, journey_basic_query)
 
     def test_forbidden_uris_on_line(self):
@@ -513,19 +495,22 @@ class TestPtRef(AbstractTestFixture):
         assert len(lines[0]['physical_modes']) == 1
         assert lines[0]['physical_modes'][0]['id'] == 'physical_mode:Car'
 
-        #there is only one line, so when we forbid it's physical mode, we find nothing
-        response, code = self.query_no_assert("v1/coverage/main_ptref_test/lines"
-                                        "?forbidden_uris[]=physical_mode:Car")
+        # there is only one line, so when we forbid it's physical mode, we find nothing
+        response, code = self.query_no_assert(
+            "v1/coverage/main_ptref_test/lines" "?forbidden_uris[]=physical_mode:Car"
+        )
         assert code == 404
 
         # for retrocompatibility purpose forbidden_id[] is the same
-        response, code = self.query_no_assert("v1/coverage/main_ptref_test/lines"
-                                        "?forbidden_id[]=physical_mode:Car")
+        response, code = self.query_no_assert(
+            "v1/coverage/main_ptref_test/lines" "?forbidden_id[]=physical_mode:Car"
+        )
         assert code == 404
 
         # when we forbid another physical_mode, we find again our line
-        response, code = self.query_no_assert("v1/coverage/main_ptref_test/lines"
-                                        "?forbidden_uris[]=physical_mode:Bus")
+        response, code = self.query_no_assert(
+            "v1/coverage/main_ptref_test/lines" "?forbidden_uris[]=physical_mode:Bus"
+        )
         assert code == 200
 
     def test_simple_pt_objects(self):
@@ -538,6 +523,28 @@ class TestPtRef(AbstractTestFixture):
 
         assert get_not_null(pt_objs[0], 'id') == 'stop_area:stop2'
 
+    def test_simple_pt_objects_stop_point(self):
+        response = self.query_region('pt_objects?q=stop2&type[]=stop_point')
+
+        is_valid_pt_objects_response(response)
+
+        pt_objs = get_not_null(response, 'pt_objects')
+        assert len(pt_objs) == 1
+
+        assert get_not_null(pt_objs[0], 'embedded_type') == 'stop_point'
+
+    def test_simple_pt_objects_stop_point_and_stop_area(self):
+        response = self.query_region('pt_objects?q=stop2&type[]=stop_point&type[]=stop_area')
+
+        is_valid_pt_objects_response(response)
+
+        pt_objs = get_not_null(response, 'pt_objects')
+        assert len(pt_objs) == 2
+
+        types = [get_not_null(obj, 'embedded_type') for obj in pt_objs]
+        assert 'stop_point' in types
+        assert 'stop_area' in types
+
     def test_line_label_pt_objects(self):
         response = self.query_region('pt_objects?q=line:A&type[]=line')
         is_valid_pt_objects_response(response)
@@ -549,11 +556,11 @@ class TestPtRef(AbstractTestFixture):
         response = self.query_region('pt_objects?q=line:Ca roule&type[]=line')
         pt_objs = get_not_null(response, 'pt_objects')
         assert len(pt_objs) == 1
-        # not valid as there is no commercial mode (which impact name)
+        # not valid as there is no commercial mode (which impacts name)
         assert get_not_null(pt_objs[0], 'name') == 'base_network line:Ça roule'
 
     def test_query_with_strange_char(self):
-        q = b'stop_points/stop_point:stop_with name bob \" , é'
+        q = u'stop_points/stop_point:stop_with name bob \" , é'.encode('utf-8')
         encoded_q = quote(q)
         response = self.query_region(encoded_q)
 
@@ -583,8 +590,11 @@ class TestPtRef(AbstractTestFixture):
             is_valid_line(l)
 
     def test_journey_with_strange_char(self):
-        #we use an encoded url to be able to check the links
-        query = 'journeys?from={}&to={}&datetime=20140105T070000'.format(quote_plus(b'stop_with name bob \" , é'), quote_plus(b'stop_area:stop1'))
+        # we use an encoded url to be able to check the links
+        query = 'journeys?from={}&to={}&datetime=20140105T070000'.format(
+            quote_plus(u'stop_with name bob \" , é'.encode('utf-8')),
+            quote_plus(u'stop_area:stop1'.encode('utf-8')),
+        )
         response = self.query_region(query, display=True)
 
         self.is_valid_journey_response(response, query)
@@ -597,16 +607,60 @@ class TestPtRef(AbstractTestFixture):
         for vj in vjs:
             is_valid_vehicle_journey(vj, depth_check=1)
 
-        assert 'vj1' in (vj['id'] for vj in vjs)
+        assert 'vehicle_journey:vj1' in (vj['id'] for vj in vjs)
 
         # same with an until at the end of the day
         response = self.query_region("vehicle_journeys?since=20140105T000000&until=20140106T0000")
         vjs = get_not_null(response, 'vehicle_journeys')
-        assert 'vj1' in (vj['id'] for vj in vjs)
+        assert 'vehicle_journey:vj1' in (vj['id'] for vj in vjs)
 
         # there is no vj after the 8
-        response, code = self.query_no_assert("v1/coverage/main_ptref_test/vehicle_journeys?since=20140109T070000")
+        response, code = self.query_no_assert(
+            "v1/coverage/main_ptref_test/vehicle_journeys?since=20140109T070000"
+        )
 
+        assert code == 404
+        assert get_not_null(response, 'error')['message'] == 'ptref : Filters: Unable to find object'
+
+    def test_vj_period_filter_with_tz(self):
+        '''
+        testing that using TZ is OK (+0130 means TZ +1h30min)
+        Note: This is especially usefull as Kirin now uses it
+        '''
+
+        # first check it's OK with no TZ
+        params = {'since': '20140105T111500', 'until': '20140105T121000', 'headsign': 'vj1'}
+        response = self.query_region('vehicle_journeys?{}'.format(urlencode(params, doseq=True)))
+        vjs = get_not_null(response, 'vehicle_journeys')
+        assert 'vehicle_journey:vj1' in (vj['id'] for vj in vjs)
+
+        # check using the actual TZ (Europe/Paris so UTC+1)
+        params['since'] = '20140105T111500+0100'
+        params['until'] = '20140105T121000+0100'
+        response = self.query_region('vehicle_journeys?{}'.format(urlencode(params, doseq=True)))
+        vjs = get_not_null(response, 'vehicle_journeys')
+        assert 'vehicle_journey:vj1' in (vj['id'] for vj in vjs)
+
+        # check converting time correctly to UTC
+        params['since'] = '20140105T101500+0000'
+        params['until'] = '20140105T111000+0000'
+        response = self.query_region('vehicle_journeys?{}'.format(urlencode(params, doseq=True)))
+        vjs = get_not_null(response, 'vehicle_journeys')
+        assert 'vehicle_journey:vj1' in (vj['id'] for vj in vjs)
+
+        # check converting time correctly to 2 random TZ
+        params['since'] = '20140105T034500-0630'
+        params['until'] = '20140105T192500+0815'
+        response = self.query_region('vehicle_journeys?{}'.format(urlencode(params, doseq=True)))
+        vjs = get_not_null(response, 'vehicle_journeys')
+        assert 'vehicle_journey:vj1' in (vj['id'] for vj in vjs)
+
+        # check putting time in UTC with a mistake returns no VJ as it's then out of VJ's period
+        params['since'] = '20140105T111500+0000'
+        params['until'] = '20140105T121000-0000'
+        response, code = self.query_no_assert(
+            'v1/coverage/main_ptref_test/vehicle_journeys?{}'.format(urlencode(params, doseq=True))
+        )
         assert code == 404
         assert get_not_null(response, 'error')['message'] == 'ptref : Filters: Unable to find object'
 
@@ -627,20 +681,78 @@ class TestPtRef(AbstractTestFixture):
         assert len(lines) == 1
         assert 'B' in [code['value'] for code in lines[0]['codes'] if code['type'] == 'codeB']
 
-        response, code = self.query_no_assert("v1/coverage/main_ptref_test/lines?filter=line.has_code(codeB, rien)&show_codes=true")
+        response, code = self.query_no_assert(
+            "v1/coverage/main_ptref_test/lines?filter=line.has_code(codeB, rien)&show_codes=true"
+        )
         assert code == 400
         assert get_not_null(response, 'error')['message'] == 'ptref : Filters: Unable to find object'
 
-        response, code = self.query_no_assert("v1/coverage/main_ptref_test/lines?filter=line.has_code(codeC, rien)&show_codes=true")
+        response, code = self.query_no_assert(
+            "v1/coverage/main_ptref_test/lines?filter=line.has_code(codeC, rien)&show_codes=true"
+        )
         assert code == 400
         assert get_not_null(response, 'error')['message'] == 'ptref : Filters: Unable to find object'
 
     def test_pt_ref_internal_method(self):
         from jormungandr import i_manager
         from navitiacommon import type_pb2
+
         i = i_manager.instances['main_ptref_test']
 
         assert len([r for r in i.ptref.get_objs(type_pb2.ROUTE)]) == 3
+
+    def test_ptref_on_stop_areas_with_disable_disruption(self):
+        """
+        stop_area:stop1 with and without disable_disruption
+        """
+        current_datetime = '20140115T235959'
+        response = self.query_region("stop_areas/stop_area:stop1?_current_datetime={}".format(current_datetime))
+
+        disruptions = get_not_null(response, 'disruptions')
+
+        assert len(disruptions) == 1
+
+        response = self.query_region(
+            "stop_areas/stop_area:stop1?_current_datetime={}&disable_disruption=true".format(current_datetime)
+        )
+        assert len(response['disruptions']) == 0
+
+        response = self.query_region(
+            "stop_areas/stop_area:stop1?_current_datetime={}&disable_disruption=false".format(current_datetime)
+        )
+        assert len(response['disruptions']) == 1
+
+    def test_ptref_on_lines_with_disable_disruption(self):
+        """
+        line:A with and without disable_disruption
+        """
+        response = self.query_region("lines/line:A?_current_datetime=20140115T235959")
+        disruptions = get_not_null(response, 'disruptions')
+        assert len(disruptions) == 1
+
+        response = self.query_region("lines/line:A?_current_datetime=20140115T235959&disable_disruption=true")
+        assert len(response['disruptions']) == 0
+
+        response = self.query_region("lines/line:A?_current_datetime=20140115T235959&disable_disruption=false")
+        disruptions = get_not_null(response, 'disruptions')
+        assert len(disruptions) == 1
+
+    def test_pt_objects_with_disable_disruption(self):
+        response = self.query_region('pt_objects?q=line:A&type[]=line&_current_datetime=20140115T235959')
+        is_valid_pt_objects_response(response)
+        disruptions = get_not_null(response, 'disruptions')
+        assert len(disruptions) == 1
+        assert disruptions[0]['disruption_id'] == 'Disruption On line:A'
+
+        response = self.query_region(
+            'pt_objects?q=line:A&type[]=line&_current_datetime=20140115T235959' '&disable_disruption=true'
+        )
+        assert len(response['disruptions']) == 0
+
+        response = self.query_region(
+            'pt_objects?q=line:A&type[]=line&_current_datetime=20140115T235959' '&disable_disruption=false'
+        )
+        assert len(response['disruptions']) == 1
 
 
 @dataset({"main_ptref_test": {}, "main_routing_test": {}})
@@ -656,18 +768,20 @@ class TestPtRefRoutingAndPtrefCov(AbstractTestFixture):
         """the external_code is a mandatory parameter for collection without coverage"""
         r, status = self.query_no_assert("v1/lines")
         assert status == 400
-        assert "parameter \"external_code\" invalid: " \
-               "Missing required parameter in the post body or the query string" \
-               "\nexternal_code description: An external code to query" == \
-               r.get('message')
+        assert (
+            "parameter \"external_code\" invalid: "
+            "Missing required parameter in the post body or the query string"
+            "\nexternal_code description: An external code to query" == r.get('message')
+        )
 
     def test_parameter_error_message(self):
         """test the parameter validation error message"""
         r, status = self.query_no_assert("v1/coverage/lines?disable_geojson=12")
         assert status == 400
-        assert "parameter \"disable_geojson\" invalid: Invalid literal for boolean(): 12\n" \
-               "disable_geojson description: hide the coverage geojson to reduce response size" == \
-               r.get('message')
+        assert (
+            "parameter \"disable_geojson\" invalid: Invalid literal for boolean(): 12\n"
+            "disable_geojson description: hide the coverage geojson to reduce response size" == r.get('message')
+        )
 
     def test_invalid_url(self):
         """the following bad url was causing internal errors, it should only be a 404"""
@@ -677,7 +791,6 @@ class TestPtRefRoutingAndPtrefCov(AbstractTestFixture):
 
 @dataset({"main_routing_test": {}})
 class TestPtRefRoutingCov(AbstractTestFixture):
-
     def test_with_coords(self):
         """test with a coord in the pt call, so a place nearby is actually called"""
         response = self.query_region("coords/{coord}/stop_areas".format(coord=r_coord))
@@ -687,7 +800,7 @@ class TestPtRefRoutingCov(AbstractTestFixture):
         for s in stops:
             is_valid_stop_area(s)
 
-        #the default is the search for all stops within 200m, so we should have A and C
+        # the default is the search for all stops within 200m, so we should have A and C
         assert len(stops) == 2
 
         assert set(["stopA", "stopC"]) == set([s['name'] for s in stops])
@@ -701,7 +814,7 @@ class TestPtRefRoutingCov(AbstractTestFixture):
         for s in stops:
             is_valid_stop_area(s)
 
-        #the default is the search for all stops within 200m, so we should have A and C
+        # the default is the search for all stops within 200m, so we should have A and C
         assert len(stops) == 2
 
         assert set(["stopA", "stopC"]) == set([s['name'] for s in stops])
@@ -725,16 +838,18 @@ class TestPtRefRoutingCov(AbstractTestFixture):
         only A and C have a metro line
         Note: the metro is physical_mode:0x1
         """
-        response = self.query_region("physical_modes/physical_mode:0x1/coords/{coord}/stop_areas"
-                                     "?distance=300".format(coord=r_coord), display=True)
+        response = self.query_region(
+            "physical_modes/physical_mode:0x1/coords/{coord}/stop_areas" "?distance=300".format(coord=r_coord),
+            display=True,
+        )
 
         stops = get_not_null(response, 'stop_areas')
 
         for s in stops:
             is_valid_stop_area(s)
 
-        #the default is the search for all stops within 200m, so we should have all 3 stops
-        #we should have 3 stops
+        # the default is the search for all stops within 200m, so we should have all 3 stops
+        # we should have 3 stops
         assert len(stops) == 2
         assert set(["stopA", "stopC"]) == set([s['name'] for s in stops])
 
@@ -743,8 +858,8 @@ class TestPtRefRoutingCov(AbstractTestFixture):
         response = self.query_region('lines')
         assert 'error' not in response
         lines = get_not_null(response, 'lines')
-        assert len(lines) == 5
-        assert {"1A", "1B", "1C", "1D", "1M"} == {l['code'] for l in lines}
+        assert len(lines) == 6
+        assert {"1PM", "1A", "1B", "1C", "1D", "1M"} == {l['code'] for l in lines}
 
     def test_line_filter_line_code(self):
         """test filtering lines from line code 1A in the pt call"""
@@ -798,16 +913,16 @@ class TestPtRefRoutingCov(AbstractTestFixture):
 
     def test_headsign_with_resource_uri(self):
         """test usage of headsign with resource uri"""
-        response = self.query_region('physical_modes/physical_mode:0x0/vehicle_journeys'
-                                     '?headsign=vjA')
+        response = self.query_region('physical_modes/physical_mode:0x0/vehicle_journeys' '?headsign=vjA')
         assert 'error' not in response
         vjs = get_not_null(response, 'vehicle_journeys')
         assert len(vjs) == 1
 
     def test_headsign_with_code_filter_and_resource_uri(self):
         """test usage of headsign with code filter and resource uri"""
-        response = self.query_region('physical_modes/physical_mode:0x0/vehicle_journeys'
-                                     '?headsign=vjA&filter=line.code=1A')
+        response = self.query_region(
+            'physical_modes/physical_mode:0x0/vehicle_journeys' '?headsign=vjA&filter=line.code=1A'
+        )
         assert 'error' not in response
         vjs = get_not_null(response, 'vehicle_journeys')
         assert len(vjs) == 1
@@ -857,7 +972,9 @@ class TestPtRefRoutingCov(AbstractTestFixture):
 
     def test_headsign_display_info_journeys(self):
         """test basic print of headsign in section for journeys"""
-        response = self.query_region('journeys?from=stop_point:stopB&to=stop_point:stopA&datetime=20120615T000000&max_duration_to_pt=0')
+        response = self.query_region(
+            'journeys?from=stop_point:stopB&to=stop_point:stopA&datetime=20120615T000000&max_duration_to_pt=0'
+        )
         assert 'error' not in response
         journeys = get_not_null(response, 'journeys')
         assert len(journeys) == 1
@@ -869,8 +986,8 @@ class TestPtRefRoutingCov(AbstractTestFixture):
         response = self.query_region('stop_points/stop_point:stopB/departures?from_datetime=20120615T000000')
         assert 'error' not in response
         departures = get_not_null(response, 'departures')
-        assert len(departures) == 3
-        assert {"A00", "vjM", "vjB"} == {d['display_informations']['headsign'] for d in departures}
+        assert len(departures) == 4
+        assert {"A00", "vjM", "vjB", "vjPM"} == {d['display_informations']['headsign'] for d in departures}
 
     def test_headsign_display_info_arrivals(self):
         """test basic print of headsign in display informations for arrivals"""
@@ -878,7 +995,7 @@ class TestPtRefRoutingCov(AbstractTestFixture):
         assert 'error' not in response
         arrivals = get_not_null(response, 'arrivals')
         assert len(arrivals) == 2
-        assert arrivals[0]['display_informations']['headsign'] == "vehicle_journey 4"
+        assert arrivals[0]['display_informations']['headsign'] == "vj 5"
 
     def test_headsign_display_info_route_schedules(self):
         """test basic print of headsign in display informations for route schedules"""
@@ -905,7 +1022,7 @@ class TestPtRefRoutingCov(AbstractTestFixture):
         response = self.query_region('disruptions')
 
         disruptions = get_not_null(response, 'disruptions')
-        assert len(disruptions) == 10
+        assert len(disruptions) == 11
         for d in disruptions:
             is_valid_disruption(d)
 
@@ -921,19 +1038,16 @@ class TestPtRefRoutingCov(AbstractTestFixture):
         disruptions_uris = set([d['uri'] for d in disruptions])
         assert {"too_bad_line_C", "too_bad_all_lines"} == disruptions_uris
 
-        # we can't access object from the disruption though (we don't think it to be useful for the moment)
+        # we can access line object from the disruption
         response, status = self.query_region('disruptions/too_bad_line_C/lines', check=False)
-        assert status == 404
-        e = get_not_null(response, 'error')
-        assert e['id'] == 'unknown_object'
-        assert e['message'] == 'ptref : Filters: Unable to find object'
+        assert status == 200
 
     def test_trips(self):
         """test the /trips api"""
         response = self.query_region('trips')
 
         trips = get_not_null(response, 'trips')
-        assert len(trips) == 7
+        assert len(trips) == 8
         for t in trips:
             is_valid_trip(t)
 
@@ -944,14 +1058,16 @@ class TestPtRefRoutingCov(AbstractTestFixture):
         assert get_not_null(trips[0], 'id') == "vjA"
 
         # we can also display trip of a vj
-        response = self.query_region('vehicle_journeys/vjB/trips')
+        response = self.query_region('vehicle_journeys/vehicle_journey:vjB/trips')
         trips = get_not_null(response, 'trips')
         assert len(trips) == 1
         assert get_not_null(trips[0], 'id') == "vjB"
 
     def test_attributs_in_display_info_journeys(self):
         """test some attributs in  display_information of a section for journeys"""
-        response = self.query_region('journeys?from=stop_point:stopB&to=stop_point:stopA&datetime=20120615T000000&max_duration_to_pt=0')
+        response = self.query_region(
+            'journeys?from=stop_point:stopB&to=stop_point:stopA&datetime=20120615T000000&max_duration_to_pt=0'
+        )
         assert 'error' not in response
         journeys = get_not_null(response, 'journeys')
         assert len(journeys) == 1

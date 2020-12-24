@@ -1,3 +1,418 @@
+navitia2 (2.81.0) unstable; urgency=low
+
+  * All: Use mypy for every projects  <https://github.com/CanalTP/navitia/pull/2838>
+  * Tyr: load open addresses in mimir  <https://github.com/CanalTP/navitia/pull/2849>
+  * Jormun: fix default data_freshness for route_schedules   <https://github.com/CanalTP/navitia/pull/2847>
+  * fusio2ed: stop_id is supported into admin_stations.txt  <https://github.com/CanalTP/navitia/pull/2836>
+  * [Jormun] Fix 'forbidden_uris[]' for /line_reports  <https://github.com/CanalTP/navitia/pull/2844>
+  * Kraken: Fix the way best journey is picked (filter)  <https://github.com/CanalTP/navitia/pull/2829>
+  * [Tyr] Return error when provider not found + test  <https://github.com/CanalTP/navitia/pull/2826>
+  * build: handle sanitizers in cmake  <https://github.com/CanalTP/navitia/pull/2817>
+  * Kraken: Add ability to configure max core dump file size  <https://github.com/CanalTP/navitia/pull/2816>
+  * Jormungandr: add a test to ensure that jormungandr does not read bragi's id  <https://github.com/CanalTP/navitia/pull/2815>
+  * [Doc] Realtime integration in Navitia  <https://github.com/CanalTP/navitia/pull/2811>
+  * jormungandr: equipment_reports abort is tested  <https://github.com/CanalTP/navitia/pull/2814>
+  * Jormungandr: equipment_reports api with uri filter  <https://github.com/CanalTP/navitia/pull/2812>
+  * [Jormun] Integration test for ticket in journeys response  <https://github.com/CanalTP/navitia/pull/2808>
+  * Kraken: Revert A* PR  <https://github.com/CanalTP/navitia/pull/2840>
+  * Doc: add precision on cardinality of fare objects  <https://github.com/CanalTP/navitia/pull/2841>
+  * Jormun: mypy doesn't like protobuf types  <https://github.com/CanalTP/navitia/pull/2835>
+  * Tyr: fix revision  <https://github.com/CanalTP/navitia/pull/2822>
+  * Revert "[Kraken]: use Flann to find nearest objects"  <https://github.com/CanalTP/navitia/pull/2818>
+  * [Ed] add a cli param to fetch admins from cities to osm2ed  <https://github.com/CanalTP/navitia/pull/2783>
+  * Jormungandr: fallback to kraken for /places/<uri>  <https://github.com/CanalTP/navitia/pull/2800>
+  * Jormun: read stop's lines in /places  <https://github.com/CanalTP/navitia/pull/2805>
+  * Doc: Defining a new NTFS fare modelization  <https://github.com/CanalTP/navitia/pull/2791>
+  * jormungandr: Integration test on pass midnight  <https://github.com/CanalTP/navitia/pull/2807>
+  * All: Update precommit  <https://github.com/CanalTP/navitia/pull/2809>
+  * [Kraken]: use Flann to find nearest objects  <https://github.com/CanalTP/navitia/pull/2774>
+  * Kraken : Using projected coord instead of real coord for astar  <https://github.com/CanalTP/navitia/pull/2804>
+  * Kraken : Optimisation for dijkstra  <https://github.com/CanalTP/navitia/pull/2792>
+  * Jormun : Adding min_taxi  <https://github.com/CanalTP/navitia/pull/2802>
+  * Build: add pre-commit for flake8  <https://github.com/CanalTP/navitia/pull/2801>
+
+ -- Pierre-Etienne Bougue <pierre-etienne.bougue@canaltp.fr>  Wed, 03 Jul 2019 12:07:01 +0100
+
+navitia2 (2.80.3) unstable; urgency=low
+
+  * Jormun: handle multiple SAE lines for a navitia line in sytralRT <https://github.com/CanalTP/navitia/pull/2833>
+
+ -- Alexandre Jacquin <alexandre.jacquin@kisio.com>  Wed, 19 Jun 2019 15:06:30 +0100
+
+navitia2 (2.80.2) unstable; urgency=low
+
+  * [Jormun] Dedup equipment details  <https://github.com/CanalTP/navitia/pull/2806>
+
+ -- Pierre-Etienne Bougue <pierre-etienne.bougue@canaltp.fr>  Thu, 06 Jun 2019 17:06:15 +0100
+
+navitia2 (2.80.1) unstable; urgency=low
+
+  * kraken: fix autocomplete scores after rt update  <https://github.com/CanalTP/navitia/pull/2821>
+
+ -- Pierre-Etienne Bougue <pierre-etienne.bougue@canaltp.fr>  Thu, 06 Jun 2019 11:06:47 +0100
+
+navitia2 (2.80.0) unstable; urgency=low
+
+  * Kraken: Display stop_area in each stop_point of section.stop_date_times  <https://github.com/CanalTP/navitia/pull/2796>
+  * Kraken: Add 'source_id' in ticket  <https://github.com/CanalTP/navitia/pull/2803>
+  * Kraken: Realtime, cannot add new trip if trip-id corresponds to a base VJ the same day  <https://github.com/CanalTP/navitia/pull/2776>
+  * Tyr: Upgrade endpoints '/' & add '/status'  <https://github.com/CanalTP/navitia/pull/2785>
+  * Jormun: Fix missing import  <https://github.com/CanalTP/navitia/pull/2797>
+  * Kraken: Using Astar for direct path  <https://github.com/CanalTP/navitia/pull/2778>
+  * Kraken: Include portable boost serialization is missing  <https://github.com/CanalTP/navitia/pull/2794>
+  * Tests: Concurent integration tests  <https://github.com/CanalTP/navitia/pull/2788>
+  * Kraken: Move more types....  <https://github.com/CanalTP/navitia/pull/2784>
+  * Kraken: Improve RT vj name and uri  <https://github.com/CanalTP/navitia/pull/2779>
+  * Kraken: Fix boost::posix_time::seconds on ubuntu disco with boost 1.67  <https://github.com/CanalTP/navitia/pull/2789>
+  * Tyr: Add job 'cities' and returns it in /cities/status  <https://github.com/CanalTP/navitia/pull/2773>
+
+ -- AurelienLP <aurelien.laporte@canaltp.fr>  Fri, 24 May 2019 11:05:04 +0100
+
+navitia2 (2.79.2) unstable; urgency=low
+
+  * Hotfix : Add missing import for abort
+
+ -- Nonifier <olivier.georget@kisio.org>  Tue, 21 May 2019 17:05:46 +0100
+
+navitia2 (2.79.0) unstable; urgency=low
+
+  * Jormun-Tyr: Association instance-equipments_provider   <https://github.com/CanalTP/navitia/pull/2777>
+  * Kraken: splitting of type.h Strikes Back  <https://github.com/CanalTP/navitia/pull/2781>
+  * Jormun: handle HEAD request correctly  <https://github.com/CanalTP/navitia/pull/2782>
+  * Doc: Add colours and graph to the doc <https://github.com/CanalTP/navitia/pull/2780>
+  * Kraken: trying to reduce build time and memory  <https://github.com/CanalTP/navitia/pull/2687>
+  * Build: use ccache and gold if available  <https://github.com/CanalTP/navitia/pull/2772>
+  * Jormungandr: add test on trip add with trip existing in navitia  <https://github.com/CanalTP/navitia/pull/2775>
+  * Doc: Documentation of the routing algorithm  <https://github.com/CanalTP/navitia/pull/2688>
+  * Kraken: manage headsign of trip in navitia  <https://github.com/CanalTP/navitia/pull/2771>
+  * Kraken: Remove Cli tools for kraken  <https://github.com/CanalTP/navitia/pull/2770>
+  * Doc: Release process hardenning  <https://github.com/CanalTP/navitia/pull/2769>
+  * Jormun: Use ridesharing connector in distributed  <https://github.com/CanalTP/navitia/pull/2743>
+  * Ed: Osm2ed improve association of Way to Admin  <https://github.com/CanalTP/navitia/pull/2756>
+  * Python: update SQLAlchemy requirements   <https://github.com/CanalTP/navitia/pull/2761>
+
+ -- AurelienLP <aurelien.laporte@canaltp.fr>  Fri, 10 May 2019 15:05:37 +0100
+
+navitia2 (2.78.0) unstable; urgency=low
+
+  * Jormun: Merge systral equipment response with Sytral web service  <https://github.com/CanalTP/navitia/pull/2764>
+  * Jormun: Fix 'choose_best_instance' comparator + tests  <https://github.com/CanalTP/navitia/pull/2765>
+  * Jormun: Remove the lowerisation of the equipment provider key  <https://github.com/CanalTP/navitia/pull/2763>
+  * Kraken: Attach vj to a route and line  <https://github.com/CanalTP/navitia/pull/2759>
+  * Jormun: Update taxi distance and duration in distributed mode  <https://github.com/CanalTP/navitia/pull/2752>
+  * Kraken: Equipment details optimisation  <https://github.com/CanalTP/navitia/pull/2755>
+  * Tyr: 'instances' in 'equipments_provider' is nullable  <https://github.com/CanalTP/navitia/pull/2751>
+  * Eitri: psycopg2 2.4.5 can't work with ubuntu 18.04  <https://github.com/CanalTP/navitia/pull/2753>
+  * Kraken: physical mode id in realtime, only impact additional service  <https://github.com/CanalTP/navitia/pull/2748>
+  * Jormun: Adding max_nb_crowfly_by_taxi  <https://github.com/CanalTP/navitia/pull/2741>
+  * Python: Update Jinja2 requirements  <https://github.com/CanalTP/navitia/pull/2750>
+
+ -- Nonifier <olivier.georget@kisio.org>  Fri, 26 Apr 2019 17:04:35 +0100
+
+navitia2 (2.77.1) unstable; urgency=low
+
+  * Jormungandr: no db request at equipment_providers init <https://github.com/CanalTP/navitia/pull/2758>
+
+ -- mbounabi <Mehdi.Bounabi@Kisio.org>  Wed, 17 Apr 2019 14:04:41 +0100
+
+navitia2 (2.77.0) unstable; urgency=low
+
+  * Kraken: Don't use cbegin() and cend() with RepeatedPtrField (protobuf version < 3)  <https://github.com/CanalTP/navitia/pull/2749>
+  * Kraken: Equipment reports API   <https://github.com/CanalTP/navitia/pull/2742>
+  * Kirin: Attach physical mode to vj: tests of verifications   <https://github.com/CanalTP/navitia/pull/2737>
+  * Doc: Adding pathways and levels to NTFS specs  <https://github.com/CanalTP/navitia/pull/2722>
+  * Clang format  <https://github.com/CanalTP/navitia/pull/2695>
+  * Kraken: New API entry point - equipment_reports  <https://github.com/CanalTP/navitia/pull/2735>
+  * Kraken: correct application period processing for RT added trip  <https://github.com/CanalTP/navitia/pull/2739>
+  * Jormun: Add direct path limit for all modes   <https://github.com/CanalTP/navitia/pull/2721>
+  * Jormun: fix test failing on dev  <https://github.com/CanalTP/navitia/pull/2740>
+  * Jormun: handle zone and zone_type from bragi  <https://github.com/CanalTP/navitia/pull/2732>
+  * Kraken: Add RT route dynamically  <https://github.com/CanalTP/navitia/pull/2724>
+  * Jormun: Handle providers from db  <https://github.com/CanalTP/navitia/pull/2730>
+  * Kraken: Add and use PT_Data::get_or_create_meta_vehicle_journey()   <https://github.com/CanalTP/navitia/pull/2738>
+  * Jormun: enable keepalive on http call to bragi  <https://github.com/CanalTP/navitia/pull/2707>
+  * Kraken: Adding taxi durations and distance in journey response  <https://github.com/CanalTP/navitia/pull/2731>
+  * Ed/cities: change osm's admins id  <https://github.com/CanalTP/navitia/pull/2736>
+  * Kraken: Add new method "has_code_type" in PtRef Grammar  <https://github.com/CanalTP/navitia/pull/2728>
+  * Kraken: Refactor build helper  <https://github.com/CanalTP/navitia/pull/2729>
+  * Kraken: implements deadline on kraken request  <https://github.com/CanalTP/navitia/pull/2710>
+  * Kraken: Skip realtime cancelled trip update on a VJ that doesn't exist + tests  <https://github.com/CanalTP/navitia/pull/2720>
+  * Tyr: New endpoint /equipments_providers + db management  <https://github.com/CanalTP/navitia/pull/2726>
+
+ -- Nonifier <olivier.georget@kisio.org>  Fri, 12 Apr 2019 15:04:08 +0100
+
+navitia2 (2.76.0) unstable; urgency=low
+
+  * [doc] Update line_sections.md  <https://github.com/CanalTP/navitia/pull/2727>
+  * [ALL] Adding taxi mode  <https://github.com/CanalTP/navitia/pull/2723>
+  * [Jormun] Make call to SytralRT's equipments details webservice  <https://github.com/CanalTP/navitia/pull/2725>
+  * [Jormun] Allow more fallback combinations  <https://github.com/CanalTP/navitia/pull/2716>
+  * [Jormungandr] Manage equipment providers  <https://github.com/CanalTP/navitia/pull/2713>
+  * [Jormun] Properly linking fallback to pt in distributed  <https://github.com/CanalTP/navitia/pull/2714>
+
+ -- Pierre-Etienne Bougue <pierre-etienne.bougue@canaltp.fr>  Fri, 29 Mar 2019 15:03:41 +0100
+
+navitia2 (2.75.0) unstable; urgency=low
+
+  * Jormun: Add equipment details provider configuration mechanism  <https://github.com/CanalTP/navitia/pull/2706>
+  * Kraken: Fix a bug in ptref when giving a coord, address, way or admin  <https://github.com/CanalTP/navitia/pull/2709>
+  * Jormun: Fix empty distances returned on /places by Kraken  <https://github.com/CanalTP/navitia/pull/2703>
+  * Kraken: fix disruption deletion when multiple impacts impacting the same vj  <https://github.com/CanalTP/navitia/pull/2700>
+  * Jormun: Add new parameter to expose equipement details  <https://github.com/CanalTP/navitia/pull/2699>
+  * Jormun: Add parking module connector augeas  <https://github.com/CanalTP/navitia/pull/2694>
+  * Doc: Add representation of the pt_graph in pt_ref's documentation  <https://github.com/CanalTP/navitia/pull/2684>
+  * cities: handle case where insee or post_code is NULL  <https://github.com/CanalTP/navitia/pull/2696>
+  * Jormun: deletion of marshal  <https://github.com/CanalTP/navitia/pull/2678>
+  * Doc: update NTFS FeedInfo properties  <https://github.com/CanalTP/navitia/pull/2681>
+  * Tyr: Add cosmogony2mimir to tyr  <https://github.com/CanalTP/navitia/pull/2690>
+  * kraken: delete a queue after a timeout for a reload from kirin  <https://github.com/CanalTP/navitia/pull/2692>
+
+ -- Benoit Brisset <benoit.brisset@gmail.com>  Fri, 15 Mar 2019 13:03:58 +0100
+
+navitia2 (2.74.0) unstable; urgency=low
+
+  * Kraken: Update existing tests with is_realtime_add_trip_enabled flag  <https://github.com/CanalTP/navitia/pull/2683>
+  * Kraken: Add enable_realtime_add_trip flag  <https://github.com/CanalTP/navitia/pull/2679>
+  * Jormun: Experimentation with mypy  <https://github.com/CanalTP/navitia/pull/2673>
+  * Kraken: UTests around clean_useless_vjs func  <https://github.com/CanalTP/navitia/pull/2675>
+  * Jormun: remove marshal first step  <https://github.com/CanalTP/navitia/pull/2674>
+
+ -- mbounabi <Mehdi.Bounabi@Kisio.org>  Fri, 01 Mar 2019 11:03:00 +0100
+
+navitia2 (2.73.0) unstable; urgency=low
+
+  * Doc: ptref grammar  <https://github.com/CanalTP/navitia/pull/2664>
+  * Kraken: Fix realtime test (on ubuntu 16.04)  <https://github.com/CanalTP/navitia/pull/2670>
+  * Jormun: Sytral parking RT + test  <https://github.com/CanalTP/navitia/pull/2669>
+  * Doc: 'distance' field from 'Place' object in the swagger  <https://github.com/CanalTP/navitia/pull/2671>
+  * PTref: Fix uncatched exception when ptref_ng read an unclosed string  <https://github.com/CanalTP/navitia/pull/2677>
+  * Kraken: rebuild previous raptor cache in maintenance worker after applying realtime  <https://github.com/CanalTP/navitia/pull/2668>
+  * Kraken: reduce the number of labels on prometheus metrics  <https://github.com/CanalTP/navitia/pull/2672>
+  * Jormungandr: Module with parking  <https://github.com/CanalTP/navitia/pull/2660>
+
+ -- Pierre-Etienne Bougue <pierre-etienne.bougue@canaltp.fr>  Fri, 15 Feb 2019 11:02:44 +0100
+
+navitia2 (2.72.0) unstable; urgency=low
+
+  * Jormun: do not cache coverage search by coord  <https://github.com/CanalTP/navitia/pull/2665>
+  * Kraken: Fix date filter in disruptions  <https://github.com/CanalTP/navitia/pull/2663>
+  * Jormun: fix bragi multiple parameters  <https://github.com/CanalTP/navitia/pull/2667>
+  * Kraken: Change operator associativity for something more natural.  <https://github.com/CanalTP/navitia/pull/2666>
+  * Doc: Import blog post about the sorting of the vehicle in a time table  <https://github.com/CanalTP/navitia/pull/2661>
+  * Jormun: rename pt_dataset to pt_dataset[]  <https://github.com/CanalTP/navitia/pull/2662>
+
+ -- XL <patrick.qian@canaltp.fr>  Fri, 01 Feb 2019 11:02:41 +0100
+
+navitia2 (2.71.0) unstable; urgency=low
+
+  * tyr: Validate shape at binarisation  <https://github.com/CanalTP/navitia/pull/2659>
+  * jormun: Prevent crash in jormun if we got a bad geom from kraken  <https://github.com/CanalTP/navitia/pull/2658>
+  * Jormun/tyr: rollback to previous version of celery and redis  <https://github.com/CanalTP/navitia/pull/2657>
+  * Tyr: "correctly" handle error in async command  <https://github.com/CanalTP/navitia/pull/2655>
+  * Tyr: fix issue with redis lock  <https://github.com/CanalTP/navitia/pull/2653>
+  * Jormun: Fix count on /departures with realtime proxies  <https://github.com/CanalTP/navitia/pull/2651>
+  * Eitri: add cities into eitri  <https://github.com/CanalTP/navitia/pull/2650>
+  * jormun: stop reporting bragi error as newrelic exception  <https://github.com/CanalTP/navitia/pull/2637>
+  * jormungandr: Improve cache failure management  <https://github.com/CanalTP/navitia/pull/2636>
+  * Kraken: consider reduced_service as modifying effect  <https://github.com/CanalTP/navitia/pull/2641>
+  * tyr: activate purge_old_jobs  <https://github.com/CanalTP/navitia/pull/2621>
+
+ -- Alexandre Jacquin <alexandre.jacquin@canaltp.fr>  Fri, 18 Jan 2019 14:01:56 +0100
+
+navitia2 (2.70.1) unstable; urgency=low
+
+  * jormun: Fix missing schedules in SIRI realtime connector <https://github.com/CanalTP/navitia/pull/2645>
+  * jormun: handle SIRI errors appropriately <https://github.com/CanalTP/navitia/pull/2640>
+
+ -- Alexandre Jacquin <alexandre.jacquin@canaltp.fr>  Wed, 09 Jan 2019 14:01:37 +0100
+
+navitia2 (2.70.0) unstable; urgency=low
+
+  * kraken: Manages added_for_detour in advance  <https://github.com/CanalTP/navitia/pull/2626>
+  * kraken: use new version of concurrentLRU  <https://github.com/CanalTP/navitia/pull/2638>
+  * jormun: refactoring of zmq socket reaper  <https://github.com/CanalTP/navitia/pull/2625>
+  * kraken: add metrics for data loading  <https://github.com/CanalTP/navitia/pull/2627>
+  * kraken: migration to c++14  <https://github.com/CanalTP/navitia/pull/2639>
+  * Kraken: optimize raptor cache creation  <https://github.com/CanalTP/navitia/pull/2630>
+  * kraken: update zmq load balancer  <https://github.com/CanalTP/navitia/pull/2628>
+  * kraken: new StopTimeEventStatus with detour implemented  <https://github.com/CanalTP/navitia/pull/2620>
+
+ -- Nonifier <olivier.georget@kisio.org>  Fri, 04 Jan 2019 14:01:39 +0100
+
+navitia2 (2.69.0) unstable; urgency=low
+
+  * Distributed: Update distances once the details are computed  <https://github.com/CanalTP/navitia/pull/2624>
+  * Distributed: Add filter for finalized journeys  <https://github.com/CanalTP/navitia/pull/2629>
+  * Distributed: update distances also for pure crowflies  <https://github.com/CanalTP/navitia/pull/2632>
+  * Kraken: Fix clang compilation  <https://github.com/CanalTP/navitia/pull/2615>
+  * kraken: fix tests that were failling without tcmalloc  <https://github.com/CanalTP/navitia/pull/2608>
+  * Kraken: Fix a bug in the presence of alighting and boarding data  <https://github.com/CanalTP/navitia/pull/2612>
+  * kraken: Remove a few use-after-free error  <https://github.com/CanalTP/navitia/pull/2613>
+  * Kraken: Realtime Add effect in trip update  <https://github.com/CanalTP/navitia/pull/2601>
+  * Jormungandr: integration of new parameters for Instant System  <https://github.com/CanalTP/navitia/pull/2590>
+  * Jormungandr: Rollback to celery and kombu 4.0.2   <https://github.com/CanalTP/navitia/pull/2622>
+  * Jormungandr: log request-id provided in the request  <https://github.com/CanalTP/navitia/pull/2605>
+  * Jormungandr: Celery version bump  <https://github.com/CanalTP/navitia/pull/2595>
+  * Tyr: fix celery problem  <https://github.com/CanalTP/navitia/pull/2614>
+  * Tyr: add poi_types json configuration management to mimir autocomplete  <https://github.com/CanalTP/navitia/pull/2602>
+  * Utils: Diff against commit's ancestor  <https://github.com/CanalTP/navitia/pull/2609>
+  * Sys: Clean up tcmalloc linking  <https://github.com/CanalTP/navitia/pull/2603>
+
+ -- Benoit Brisset <benoit.brisset@gmail.com>  Thu, 20 Dec 2018 11:12:53 +0100
+
+navitia2 (2.68.2) unstable; urgency=low
+
+  * jormun: disable uwsgi timer waiting for proper fix <https://github.com/CanalTP/navitia/pull/2618>
+  * Jormun: last version of request doesn't like headers that aren't string <https://github.com/CanalTP/navitia/pull/2619>
+
+ -- Alexandre Jacquin <alexandre.jacquin@canaltp.fr>  Wed, 05 Dec 2018 10:12:32 +0100
+
+navitia2 (2.68.1) unstable; urgency=low
+
+  *  kraken: refactoring of autocomplete to improve performance <https://github.com/CanalTP/navitia/pull/2600>
+
+ -- Alexandre Jacquin <alexandre.jacquin@canaltp.fr>  Mon, 26 Nov 2018 13:11:48 +0100
+
+navitia2 (2.68.0) unstable; urgency=low
+
+  * Jormungandr: Sytral realtime based on sytral-rt  <https://github.com/CanalTP/navitia/pull/2571>
+  * Jormungandr: Ridesharing crowfly is never equivalent to another crowfly  <https://github.com/CanalTP/navitia/pull/2583>
+  * Jormungandr: Implement transient zmq socket type like http keepalive  <https://github.com/CanalTP/navitia/pull/2594>
+  * Jormungandr: Add somes unit and integration test for disruption with a stop_time  <https://github.com/CanalTP/navitia/pull/2586>
+  * Ed: Add codes in companies  <https://github.com/CanalTP/navitia/pull/2587>
+  * Ed: Fix GTFS parse and use SuspendedCableCar  <https://github.com/CanalTP/navitia/pull/2591>
+  * Kraken: Realtime,Take into account companies into new VJ  <https://github.com/CanalTP/navitia/pull/2597>
+  * Kraken & Ed: Add visible parameters to hide inputs/ouputs  <https://github.com/CanalTP/navitia/pull/2592>
+  * Kraken: Display departures on stop_point used multiple times in lines  <https://github.com/CanalTP/navitia/pull/2589>
+  * Kraken: Prioritize main stop_area over the others stop_area  <https://github.com/CanalTP/navitia/pull/2588>
+
+ -- Benoit Brisset <benoit.brisset@gmail.com>  Fri, 23 Nov 2018 11:11:07 +0100
+
+navitia2 (2.67.0) unstable; urgency=low
+
+  * Jormun: add tests on endpoint /vj with timezones  <https://github.com/CanalTP/navitia/pull/2573>
+  * Swagger: spread schema consistency tests  <https://github.com/CanalTP/navitia/pull/2564>
+  * kraken: add metric for request currently handled  <https://github.com/CanalTP/navitia/pull/2576>
+  * Kraken: Manage adding of StopTime in realtime  <https://github.com/CanalTP/navitia/pull/2581>
+  * Jormungandr: update request for https://nvd.nist.gov/vuln/detail/CVE-2018-18074  <https://github.com/CanalTP/navitia/pull/2584>
+  * Doc: removing unused stop location_type=3  <https://github.com/CanalTP/navitia/pull/2585>
+  * Doc: Update documentation with new distributed behavior  <https://github.com/CanalTP/navitia/pull/2575>
+  * Jormun: Filter journeys before streetnetwork fallback [Distributed]  <https://github.com/CanalTP/navitia/pull/2567>
+  * Tyr & Jormun: update tests so they run doctests  <https://github.com/CanalTP/navitia/pull/2577>
+
+ -- krishna Adhikari <krishna.adhikari@kisio.com>  Fri, 09 Nov 2018 11:11:50 +0100
+
+navitia2 (2.66.0) unstable; urgency=low
+
+  * Jormungandr: Timestamp to datetime conversion for ubuntu1804  <https://github.com/CanalTP/navitia/pull/2572>
+  * Doc: move all technical and contributing doc to CONTRIBUTING.md   <https://github.com/CanalTP/navitia/pull/2578>
+  * Swagger: fix properties schema  <https://github.com/CanalTP/navitia/pull/2570>
+  * Tyr: current jobs(state='running') with data_sets should not be deleted  <https://github.com/CanalTP/navitia/pull/2563>
+  * Jormungandr: fix missing feed publisher  <https://github.com/CanalTP/navitia/pull/2568>
+  * Kraken: fix for ubuntu18 compat  <https://github.com/CanalTP/navitia/pull/2569>
+  * Jormungandr: Distributed - use request speed in place of the instance speed  <https://github.com/CanalTP/navitia/pull/2565>
+
+ -- Nonifier <olivier.georget@kisio.org>  Fri, 26 Oct 2018 15:10:05 +0100
+
+navitia2 (2.65.0) unstable; urgency=low
+
+  * Jormungandr: Avoid unnecessary call for street_networks  <https://github.com/CanalTP/navitia/pull/2542>
+  * Jormungandr: Add a memory cache layer and migration to flask_caching  <https://github.com/CanalTP/navitia/pull/2556>
+  * Jormungandr: Use a stack in place of a queue to store opened sockets  <https://github.com/CanalTP/navitia/pull/2551>
+  * Jormungandr: Allow pt_objects search for stop_points  <https://github.com/CanalTP/navitia/pull/2558>
+  * Jormungandr: Schema structure testing  <https://github.com/CanalTP/navitia/pull/2545>
+  * Navitia: Manage bss configuration with Tyr  <https://github.com/CanalTP/navitia/pull/2538>
+  * Tyr: Add /cities endpoint  <https://github.com/CanalTP/navitia/pull/2549>
+  * Tyr: Always log to syslog  <https://github.com/CanalTP/navitia/pull/2552>
+  * Swagger: Fix car_park swagger  <https://github.com/CanalTP/navitia/pull/2554>
+  * Swagger: Add tests for schema consistency  <https://github.com/CanalTP/navitia/pull/2559>
+  * Doc: Update ntfs_fare_extension_fr.md  <https://github.com/CanalTP/navitia/pull/2550>
+  * CI: Run black on each commit with travis  <https://github.com/CanalTP/navitia/pull/2561>
+
+ -- Benoit Brisset <benoit.brisset@gmail.com>  Fri, 12 Oct 2018 11:10:16 +0100
+
+navitia2 (2.64.0) unstable; urgency=low
+
+  * Jormungandr: Fix min bound datetime  <https://github.com/CanalTP/navitia/pull/2548>
+  * Jormungandr: Refactor of parser_arg_types  <https://github.com/CanalTP/navitia/pull/2544>
+  * Jormungandr: Fix min/max nb journey schema's type  <https://github.com/CanalTP/navitia/pull/2543>
+  * Jormungandr: Newrelic improve monitoring for distributed scenario  <https://github.com/CanalTP/navitia/pull/2540>
+  * Jormungandr: Teleportation crowfly is walking  <https://github.com/CanalTP/navitia/pull/2541>
+  * Jormungandr: Refacto initialization to add newrelic and gevent  <https://github.com/CanalTP/navitia/pull/2532>
+  * Tests: Rewrite line section tests in order to check all disruptions  <https://github.com/CanalTP/navitia/pull/2537>
+  * Format: Python code formatting with black  <https://github.com/CanalTP/navitia/pull/2508>
+  * CMake: Clean for cmake prefix install  <https://github.com/CanalTP/navitia/pull/2539>
+
+ -- Benoit Brisset <benoit.brisset@gmail.com>  Fri, 28 Sep 2018 15:09:23 +0100
+
+navitia2 (2.63.0) unstable; urgency=low
+
+  * Kraken & Tyr: Syslog for Ed binaries within Tyr  <https://github.com/CanalTP/navitia/pull/2533>
+  * Kraken: Handle sort_order to be navitia_model compliant  <https://github.com/CanalTP/navitia/pull/2535>
+  * Kraken: New gcc flags for coverage  <https://github.com/CanalTP/navitia/pull/2528>
+  * Jormun: Improve cache in realtimeproxy  <https://github.com/CanalTP/navitia/pull/2524>
+  * Kraken: Add disable_disruption  <https://github.com/CanalTP/navitia/pull/2525>
+  * Jormun & Kraken: First and last datetime  <https://github.com/CanalTP/navitia/pull/2509>
+  * CI: Enable Travis with submodule check  <https://github.com/CanalTP/navitia/pull/2523>
+  * Kraken: Line_reports optimisation  <https://github.com/CanalTP/navitia/pull/2522>
+  * Jormungandr: Upgrade flask to 0.12.4 and werkzeug to 0.14.1  <https://github.com/CanalTP/navitia/pull/2520>
+  * Kraken: Upgrade rabbitmq-c to v0.9.0  <https://github.com/CanalTP/navitia/pull/2521>
+  * kraken: Upgrade prometheus-cpp 0.4.2  <https://github.com/CanalTP/navitia/pull/2519>
+  * Kraken: Maintenance_worker thread interuption  <https://github.com/CanalTP/navitia/pull/2518>
+
+ -- Benoit Brisset <benoit.brisset@gmail.com>  Fri, 14 Sep 2018 14:09:25 +0100
+
+navitia2 (2.62.0) unstable; urgency=low
+
+  * Jormungandr: Configure autocomplete backend of a coverage from tyr  <https://github.com/CanalTP/navitia/pull/2515>
+  * Jormungandr: Do not return a 500 on bragi timeout for journeys  <https://github.com/CanalTP/navitia/pull/2516>
+  * Jormungandr: Fix missing tickets  <https://github.com/CanalTP/navitia/pull/2512>
+  * Jormungandr: Reduce default timeout for call to /reverse on bragi  <https://github.com/CanalTP/navitia/pull/2514>
+  * Jormungandr & Tyr: add max_nb_crowfly_by_mode  <https://github.com/CanalTP/navitia/pull/2504>
+  * Jormungandr: using circuit breaker while calling bragi  <https://github.com/CanalTP/navitia/pull/2511>
+  * Kraken: Disruption by tags for line&traffic repport  <https://github.com/CanalTP/navitia/pull/2507>
+  * Jormungandr: crow_fly mode is always walking  <https://github.com/CanalTP/navitia/pull/2506>
+  * Jormungandr: parameter used to format bikeDetails of the request  <https://github.com/CanalTP/navitia/pull/2505>
+  * Jormungandr: remove car from default fallback mode of travelers profiles  <https://github.com/CanalTP/navitia/pull/2503>
+
+ -- Benoit Brisset <benoit.brisset@gmail.com>  Fri, 31 Aug 2018 11:08:32 +0100
+
+navitia2 (2.61.0) unstable; urgency=low
+
+  * Jormun: divia connector P+R  <https://github.com/CanalTP/navitia/pull/2500>
+  * Ptref disruption by tags  <https://github.com/CanalTP/navitia/pull/2498>
+  * Doc: add documentation on kraken autocompletion  <https://github.com/CanalTP/navitia/pull/2501>
+  * Jormun: Add 'distance' in autocomplete response + tests  <https://github.com/CanalTP/navitia/pull/2493>
+  * Jormun: A few optimizations in jormun's hot path  <https://github.com/CanalTP/navitia/pull/2496>
+  * jormungandr: metrics on bss services in newrelic  <https://github.com/CanalTP/navitia/pull/2487>
+  * Kraken: update "last_rt_data_loaded" on each update even if Data hasn't changed  <https://github.com/CanalTP/navitia/pull/2491>
+  * Kraken: Fix adapted validity pattern with disruption  <https://github.com/CanalTP/navitia/pull/2492>
+  * raptor: increase number of try in raptor for journeys without transfers  <https://github.com/CanalTP/navitia/pull/2494>
+  * Doc: miscellaneous fixes  <https://github.com/CanalTP/navitia/pull/2489>
+  * Doc: BSS/park info status  <https://github.com/CanalTP/navitia/pull/2488>
+  * add connection -> stop_point link in ptref  <https://github.com/CanalTP/navitia/pull/2490>
+
+ -- Alexandre Jacquin <alexandre.jacquin@canaltp.fr>  Fri, 17 Aug 2018 11:08:54 +0100
+
+navitia2 (2.60.0) unstable; urgency=low
+
+  * Kraken: Teleportation crowfly.mode=walking  <https://github.com/CanalTP/navitia/pull/2486>
+  * Eitri, Tyr & docker tests: Launch even if docker can't reach server  <https://github.com/CanalTP/navitia/pull/2485>
+  * Jormungandr: Taking into account status in BSS station.  <https://github.com/CanalTP/navitia/pull/2471>
+  * All: Miscellaneous fixes  <https://github.com/CanalTP/navitia/pull/2483>
+  * Kraken: Dijkstra multi start  <https://github.com/CanalTP/navitia/pull/2482>
+  * Doc: Add graph of call made by distributed  <https://github.com/CanalTP/navitia/pull/2463>
+  * Doc: add Eitri as an alternative to .nav generation  <https://github.com/CanalTP/navitia/pull/2480>
+  * Jormungandr: Handle 'add_poi_infos[]' parameter + test  <https://github.com/CanalTP/navitia/pull/2477>
+  * Eitri: fix python command  <https://github.com/CanalTP/navitia/pull/2481>
+  * Ptref: Remove ptref legacy  <https://github.com/CanalTP/navitia/pull/2474>
+  * Jormungandr: improvements in culling journeys  <https://github.com/CanalTP/navitia/pull/2475>
+  * Gatling: new default VS distributed  <https://github.com/CanalTP/navitia/pull/2470>
+  * Kraken: Move set_valid_jp_and_jpp outside of the RAPTOR loop  <https://github.com/CanalTP/navitia/pull/2473>
+  * Ptref next gen, or the OR feature  <https://github.com/CanalTP/navitia/pull/2465>
+
+ -- XL <patrick.qian@canaltp.fr>  Fri, 03 Aug 2018 14:08:08 +0100
+
 navitia2 (2.59.0) unstable; urgency=low
 
   * Jormun & Kraken: add timeframe_duration for journeys  <https://github.com/CanalTP/navitia/pull/2442>
@@ -127,7 +542,7 @@ navitia2 (2.53.0) unstable; urgency=low
   * Ed:  ed2nav & fare2ed - Test for bad connection string & ensure rebinerisation  <https://github.com/CanalTP/navitia/pull/2348>
   * Tyr: packages must be str for deploy  <https://github.com/CanalTP/navitia/pull/2350>
   * Kraken: Fill disruption becomes optional on data load  <https://github.com/CanalTP/navitia/pull/2319>
-  * Jormungandr: use unicode instead of repr for better log and status format <https://github.com/CanalTP/navitia/pull/2337> 
+  * Jormungandr: use unicode instead of repr for better log and status format <https://github.com/CanalTP/navitia/pull/2337>
 
  -- Olivier Georget <olivier.georget@kisio.org>  Mon, 19 Mar 2018 12:03:47 +0100
 
@@ -466,7 +881,7 @@ navitia2 (2.32.0) unstable; urgency=low
 
 navitia2 (2.31.1) unstable; urgency=low
 
-  * Jormungandr: fix autocomplete (unknown uri)  <https://github.com/CanalTP/navitia/pull/2083> 
+  * Jormungandr: fix autocomplete (unknown uri)  <https://github.com/CanalTP/navitia/pull/2083>
 
  -- antoine-de <antoine.desbordes@gmail.com>  Wed, 10 May 2017 15:05:31 +0100
 
@@ -490,7 +905,7 @@ navitia2 (2.31.0) unstable; urgency=low
 
 navitia2 (2.30.2) unstable; urgency=low
 
-  * Kraken: use boost::container::ordered_unique_range_t for flat_set insert  <https://github.com/CanalTP/navitia/pull/2074> 
+  * Kraken: use boost::container::ordered_unique_range_t for flat_set insert  <https://github.com/CanalTP/navitia/pull/2074>
 
  -- antoine-de <antoine.desbordes@gmail.com>  Fri, 28 Apr 2017 15:04:32 +0100
 
@@ -543,7 +958,7 @@ navitia2 (2.29.0) unstable; urgency=low
 
 navitia2 (2.28.1) unstable; urgency=low
 
-  * jormungandr: set timeout for network operation with zeep <https://github.com/CanalTP/navitia/pull/2025> 
+  * jormungandr: set timeout for network operation with zeep <https://github.com/CanalTP/navitia/pull/2025>
 
  -- Alexandre Jacquin <alexandre.jacquin@canaltp.fr>  Wed, 22 Mar 2017 08:03:06 +0100
 
@@ -581,7 +996,7 @@ navitia2 (2.27.0) unstable; urgency=low
 
 navitia2 (2.26.2) unstable; urgency=low
 
-  * Kraken: fix line section bug  <https://github.com/CanalTP/navitia/pull/1997> 
+  * Kraken: fix line section bug  <https://github.com/CanalTP/navitia/pull/1997>
   * Jormungandr: hide impacted_section field when not needed  <https://github.com/CanalTP/navitia/pull/1992>
 
  -- antoine-de <antoine.desbordes@gmail.com>  Tue, 28 Feb 2017 17:02:43 +0100
@@ -709,7 +1124,7 @@ navitia2 (2.22.4) unstable; urgency=low
 
 navitia2 (2.22.3) unstable; urgency=low
 
-  * disable gevent monkey patch 
+  * disable gevent monkey patch
 
  -- Alexandre Jacquin <alexandre.jacquin@canaltp.fr>  Tue, 06 Dec 2016 09:12:25 +0100
 
@@ -721,10 +1136,10 @@ navitia2 (2.22.2) unstable; urgency=low
 
 navitia2 (2.22.1) unstable; urgency=low
 
-  * jormungandr: add patch_ssl after patch_socket  <https://github.com/CanalTP/navitia/pull/1875> 
-  * Tyr: consider all osm2ed args are utf8 (no ascii convert)  <https://github.com/CanalTP/navitia/pull/1870> 
-  * Tyr: explicit encode  <https://github.com/CanalTP/navitia/pull/1877> 
-  * Kraken: Catch exception when coord is not found  <https://github.com/CanalTP/navitia/pull/1880> 
+  * jormungandr: add patch_ssl after patch_socket  <https://github.com/CanalTP/navitia/pull/1875>
+  * Tyr: consider all osm2ed args are utf8 (no ascii convert)  <https://github.com/CanalTP/navitia/pull/1870>
+  * Tyr: explicit encode  <https://github.com/CanalTP/navitia/pull/1877>
+  * Kraken: Catch exception when coord is not found  <https://github.com/CanalTP/navitia/pull/1880>
 
  -- Pierre-Etienne Bougue <pierre-etienne.bougue@canaltp.fr>  Thu, 01 Dec 2016 16:12:05 +0100
 
@@ -828,7 +1243,7 @@ navitia2 (2.17.1) unstable; urgency=low
  -- Pierre-Etienne Bougue <pierre-etienne.bougue@canaltp.fr>  Fri, 30 Sep 2016 17:09:19 +0100
 
 navitia2 (2.17.0) unstable; urgency=low
- 
+
  * Kraken: parameter type modified to float  <https://github.com/CanalTP/navitia/pull/1764>
  * Jormungandr: use valhalla service  <https://github.com/CanalTP/navitia/pull/1741>
  * Kraken and jormungandr: Add direct path duration to raptor call for Scenario Experimental  <https://github.com/CanalTP/navitia/pull/1750>
@@ -849,14 +1264,14 @@ navitia2 (2.17.0) unstable; urgency=low
 
 navitia2 (2.16.1) unstable; urgency=low
 
-  * Proto: fix after releaseV2.16.0 navitia-proto <https://github.com/CanalTP/navitia/pull/1751>  
+  * Proto: fix after releaseV2.16.0 navitia-proto <https://github.com/CanalTP/navitia/pull/1751>
 
  -- xlqian <patrick.qian@canaltp.fr>  Fri, 02 Sep 2016 18:09:18 +0100
 
 navitia2 (2.16.0) unstable; urgency=low
 
   * Stat: fix TZ bug when launching tests on a London platform  <https://github.com/CanalTP/navitia/pull/1749>
-  * Jormungandr: add a parameters to remove geojson from lines responses  <https://github.com/CanalTP/navitia/pull/1747> 
+  * Jormungandr: add a parameters to remove geojson from lines responses  <https://github.com/CanalTP/navitia/pull/1747>
   * Osm2ed: fix a bug with private way part of an administrative boundary  <https://github.com/CanalTP/navitia/pull/1730>
   * Jormungandr: add support for async call to kraken  <https://github.com/CanalTP/navitia/pull/1743>
   * Jormungandr: fix first and last links in journeys  <https://github.com/CanalTP/navitia/pull/1745>
@@ -1056,7 +1471,7 @@ navitia2 (2.8.0) unstable; urgency=low
 
 navitia2 (2.7.2) unstable; urgency=low
 
-  * revert https://github.com/CanalTP/navitia/pull/1557 
+  * revert https://github.com/CanalTP/navitia/pull/1557
 
  -- antoine-de <antoine.desbordes@gmail.com>  Tue, 10 May 2016 18:05:57 +0100
 
@@ -1132,7 +1547,7 @@ navitia2 (2.5.0) unstable; urgency=low
 
 navitia2 (2.4.1) unstable; urgency=low
 
-  * Jormungandr: next = one second after best journey  <https://github.com/CanalTP/navitia/pull/1497> 
+  * Jormungandr: next = one second after best journey  <https://github.com/CanalTP/navitia/pull/1497>
   * Jormungandr: various fixes <https://github.com/CanalTP/navitia/pull/1495>
 
  -- antoine-de <antoine.desbordes@gmail.com>  Thu, 24 Mar 2016 10:03:19 +0100
@@ -1234,14 +1649,14 @@ navitia2 (2.1.3) unstable; urgency=low
 
 navitia2 (2.1.2) unstable; urgency=low
 
-  * jormungandr: api frames renamed to datasets <https://github.com/CanalTP/navitia/pull/1412> 
+  * jormungandr: api frames renamed to datasets <https://github.com/CanalTP/navitia/pull/1412>
   * Ed: fix timezone generation <https://github.com/CanalTP/navitia/pull/1410>
 
  -- xlqian <patrick.qian@canaltp.fr>  Mon, 15 Feb 2016 10:02:25 +0100
 
 navitia2 (2.1.1) unstable; urgency=low
 
-  * Kraken: unable feed publisher, perf are too bad  <https://github.com/CanalTP/navitia/pull/1407> 
+  * Kraken: unable feed publisher, perf are too bad  <https://github.com/CanalTP/navitia/pull/1407>
 
  -- antoine-de <antoine.desbordes@gmail.com>  Wed, 10 Feb 2016 09:02:57 +0100
 
@@ -1250,7 +1665,7 @@ navitia2 (2.1.0) unstable; urgency=low
   * Ptref: add a period filter on /disruptions  <https://github.com/CanalTP/navitia/pull/1405>
   * kraken: feed publisher  <https://github.com/CanalTP/navitia/pull/1398>
   * Jormun: no from_datetime => current datetime and realtime  <https://github.com/CanalTP/navitia/pull/1397>
-  * jormun: don't apply any "smart" filters on isochrone result... again... <https://github.com/CanalTP/navitia/pull/1402> 
+  * jormun: don't apply any "smart" filters on isochrone result... again... <https://github.com/CanalTP/navitia/pull/1402>
   * Jormungandr: add a trip name  <https://github.com/CanalTP/navitia/pull/1401>
   * jormungandr: fix min_nb_journeys in the scenario new_default  <https://github.com/CanalTP/navitia/pull/1400>
   * Jormungandr: empty boxes for rt schedule connectors  <https://github.com/CanalTP/navitia/pull/1399>
@@ -1341,7 +1756,7 @@ navitia2 (1.32.0) unstable; urgency=low
 
 navitia2 (1.31.3) unstable; urgency=low
 
-  * kraken: fix crash of sncf because of invalid stop point in IRE 
+  * kraken: fix crash of sncf because of invalid stop point in IRE
 
  -- xlqian <patrick.qian@canaltp.fr>  Tue, 15 Dec 2015 18:12:32 +0100
 
@@ -1353,7 +1768,7 @@ navitia2 (1.31.2) unstable; urgency=low
 
 navitia2 (1.31.1) unstable; urgency=low
 
-  * RT: fix disruption API for vehicle_journey  <https://github.com/CanalTP/navitia/pull/1308> 
+  * RT: fix disruption API for vehicle_journey  <https://github.com/CanalTP/navitia/pull/1308>
 
  -- antoine-de <antoine.desbordes@gmail.com>  Tue, 01 Dec 2015 11:12:47 +0100
 
@@ -1383,7 +1798,7 @@ navitia2 (1.31.0) unstable; urgency=low
 
 navitia2 (1.30.1) unstable; urgency=low
 
-  * Kraken: fix loading of disruption with multiple application periods  <https://github.com/CanalTP/navitia/pull/1279/files> 
+  * Kraken: fix loading of disruption with multiple application periods  <https://github.com/CanalTP/navitia/pull/1279/files>
 
  -- antoine-de <antoine.desbordes@gmail.com>  Thu, 19 Nov 2015 09:11:36 +0100
 
@@ -1485,7 +1900,7 @@ navitia2 (1.28.0) unstable; urgency=low
 
 navitia2 (1.27.1) unstable; urgency=low
 
-  * Ed: for the GTFS create one route by line and direction_id  <https://github.com/CanalTP/navitia/pull/1205> 
+  * Ed: for the GTFS create one route by line and direction_id  <https://github.com/CanalTP/navitia/pull/1205>
 
  -- antoine-de <antoine.desbordes@gmail.com>  Tue, 13 Oct 2015 10:10:04 +0100
 
@@ -1509,7 +1924,7 @@ navitia2 (1.27.0) unstable; urgency=low
 
 navitia2 (1.26.1) unstable; urgency=low
 
-  * fix problems with git tags 
+  * fix problems with git tags
 
  -- antoine-de <antoine.desbordes@gmail.com>  Tue, 22 Sep 2015 10:09:22 +0100
 
@@ -1549,13 +1964,13 @@ navitia2 (1.26.0) unstable; urgency=low
 
 navitia2 (1.25.2) unstable; urgency=low
 
-  * fix fill_associated_calendar  <https://github.com/CanalTP/navitia/pull/1177> 
+  * fix fill_associated_calendar  <https://github.com/CanalTP/navitia/pull/1177>
 
  -- antoine-de <antoine.desbordes@gmail.com>  Fri, 18 Sep 2015 09:09:42 +0100
 
 navitia2 (1.25.1) unstable; urgency=low
 
-  *kraken: DeleteQueue throw an exepton if the queue doesn't exist <https://github.com/CanalTP/navitia/pull/1162> 
+  *kraken: DeleteQueue throw an exepton if the queue doesn't exist <https://github.com/CanalTP/navitia/pull/1162>
 
  -- Alexandre Jacquin <alexandre.jacquin@canaltp.fr>  Fri, 04 Sep 2015 16:09:31 +0100
 
@@ -1632,21 +2047,21 @@ navitia2 (1.22.5) unstable; urgency=low
 navitia2 (1.22.4) unstable; urgency=low
 
   * Jormungandr: fix regions sort for dead region
-    <https://github.com/CanalTP/navitia/pull/1106> 
-  * Tyr: fix bug on file type  <https://github.com/CanalTP/navitia/pull/1105> 
-  * Pip: don't force any version for psycopg2 <https://github.com/CanalTP/navitia/pull/1106> 
+    <https://github.com/CanalTP/navitia/pull/1106>
+  * Tyr: fix bug on file type  <https://github.com/CanalTP/navitia/pull/1105>
+  * Pip: don't force any version for psycopg2 <https://github.com/CanalTP/navitia/pull/1106>
 
  -- antoine-de <antoine.desbordes@gmail.com>  Wed, 15 Jul 2015 15:07:26 +0100
 
 navitia2 (1.22.3) unstable; urgency=low
 
-  * change version of flask restful 
+  * change version of flask restful
 
  -- Alexandre Jacquin <alexandre.jacquin@canaltp.fr>  Wed, 15 Jul 2015 10:07:47 +0100
 
 navitia2 (1.22.2) unstable; urgency=low
 
-  * fix six version 
+  * fix six version
 
  -- Alexandre Jacquin <alexandre.jacquin@canaltp.fr>  Wed, 15 Jul 2015 09:07:33 +0100
 
@@ -1681,7 +2096,7 @@ navitia2 (1.22.0) unstable; urgency=low
 
 navitia2 (1.21.1) unstable; urgency=low
 
-  * Jormungandr: fix pt_objects API <https://github.com/CanalTP/navitia/pull/1084> 
+  * Jormungandr: fix pt_objects API <https://github.com/CanalTP/navitia/pull/1084>
 
  -- Alexandre Jacquin <alexandre.jacquin@canaltp.fr>  Fri, 03 Jul 2015 16:07:24 +0100
 
@@ -1696,13 +2111,13 @@ navitia2 (1.21.0) unstable; urgency=low
 
 navitia2 (1.20.2) unstable; urgency=low
 
- * same as 1.20.1 
+ * same as 1.20.1
 
  -- Alexandre Jacquin <alexandre.jacquin@canaltp.fr>  Tue, 23 Jun 2015 20:06:46 +0100
 
 navitia2 (1.20.1) unstable; urgency=low
 
-  * Chaos: fix db query not to load everything  <https://github.com/CanalTP/navitia/pull/1076> 
+  * Chaos: fix db query not to load everything  <https://github.com/CanalTP/navitia/pull/1076>
 
  -- antoine-de <antoine.desbordes@gmail.com>  Tue, 23 Jun 2015 17:06:21 +0100
 
@@ -1747,7 +2162,7 @@ navitia2 (1.19.0) unstable; urgency=low
 
 navitia2 (1.18.2) unstable; urgency=low
 
-  * Ed: we want postal codes to be unique  <https://github.com/CanalTP/navitia/pull/1055> 
+  * Ed: we want postal codes to be unique  <https://github.com/CanalTP/navitia/pull/1055>
 
  -- antoine-de <antoine.desbordes@gmail.com>  Wed, 27 May 2015 18:05:42 +0100
 
@@ -1784,7 +2199,7 @@ navitia2 (1.18.0) unstable; urgency=low
 
 navitia2 (1.17.1) unstable; urgency=low
 
-  * FIX 500 on NM journeys <https://github.com/CanalTP/navitia/pull/1037> 
+  * FIX 500 on NM journeys <https://github.com/CanalTP/navitia/pull/1037>
  -- Alexandre Jacquin <alexandre.jacquin@canaltp.fr>  Wed, 13 May 2015 15:05:14 +0100
 
 navitia2 (1.17.0) unstable; urgency=low
@@ -2027,14 +2442,14 @@ navitia2 (1.10.4) unstable; urgency=low
 
 navitia2 (1.10.3) unstable; urgency=low
 
-  * Ed: add check on connection duration  <https://github.com/CanalTP/navitia/pull/873> 
+  * Ed: add check on connection duration  <https://github.com/CanalTP/navitia/pull/873>
   * Kraken: all severity were blocking  <https://github.com/CanalTP/navitia/pull/871>
 
  -- antoine-de <antoine.desbordes@gmail.com>  Fri, 06 Feb 2015 14:02:28 +0100
 
 navitia2 (1.10.2) unstable; urgency=low
 
-  * ED: Fix retrieving of validity pattern in trip reading 
+  * ED: Fix retrieving of validity pattern in trip reading
 
  -- l-vincent-l <lara.vincent@gmail.com>  Thu, 05 Feb 2015 12:02:47 +0100
 
@@ -2056,7 +2471,7 @@ navitia2 (1.10.0) unstable; urgency=low
 
 navitia2 (1.9.2) unstable; urgency=low
 
-  * missing schema in ed_reader 
+  * missing schema in ed_reader
 
  -- antoine-de <antoine.desbordes@gmail.com>  Wed, 28 Jan 2015 18:01:52 +0100
 
@@ -2068,7 +2483,7 @@ navitia2 (1.9.2) unstable; urgency=low
 
 navitia2 (1.9.1) unstable; urgency=low
 
-  * fix integration tests <https://github.com/CanalTP/navitia/pull/842> 
+  * fix integration tests <https://github.com/CanalTP/navitia/pull/842>
 
  -- antoine-de <antoine.desbordes@gmail.com>  Tue, 27 Jan 2015 18:01:35 +0100
 
@@ -2271,37 +2686,37 @@ navitia2 (1.4.7) unstable; urgency=medium
 
 navitia2 (1.4.6) unstable; urgency=low
 
-  * Jormungandr: good cherry pick of commit  <https://github.com/CanalTP/navitia/pull/686> 
+  * Jormungandr: good cherry pick of commit  <https://github.com/CanalTP/navitia/pull/686>
 
  -- antoine-de <antoine.desbordes@gmail.com>  Thu, 06 Nov 2014 13:11:21 +0100
 
 navitia2 (1.4.5) unstable; urgency=low
 
-  * Jormungandr: fix small pb on sort  <https://github.com/CanalTP/navitia/pull/687> 
+  * Jormungandr: fix small pb on sort  <https://github.com/CanalTP/navitia/pull/687>
 
  -- antoine-de <antoine.desbordes@gmail.com>  Mon, 03 Nov 2014 18:11:11 +0100
 
 navitia2 (1.4.4) unstable; urgency=low
 
-  * jormungandr: fix places_nearby  <https://github.com/CanalTP/navitia/pull/691> 
+  * jormungandr: fix places_nearby  <https://github.com/CanalTP/navitia/pull/691>
 
  -- Guillaume P. <texitoi@texitoi.eu>  Mon, 03 Nov 2014 16:11:21 +0100
 
 navitia2 (1.4.3) unstable; urgency=low
 
-  * Jormungandr: force use of jormungandr version file  <https://github.com/CanalTP/navitia/pull/686> 
+  * Jormungandr: force use of jormungandr version file  <https://github.com/CanalTP/navitia/pull/686>
 
  -- antoine-de <antoine.desbordes@gmail.com>  Mon, 03 Nov 2014 13:11:21 +0100
 
 navitia2 (1.4.2) unstable; urgency=low
 
-  * CMake: version python version file generation 
+  * CMake: version python version file generation
 
  -- antoine-de <antoine.desbordes@gmail.com>  Mon, 03 Nov 2014 09:11:56 +0100
 
 navitia2 (1.4.1) unstable; urgency=low
 
-  * ormungandr: fix internal links  <https://github.com/CanalTP/navitia/pull/684> 
+  * ormungandr: fix internal links  <https://github.com/CanalTP/navitia/pull/684>
 
  -- antoine-de <antoine.desbordes@gmail.com>  Fri, 31 Oct 2014 17:10:40 +0100
 
@@ -2347,8 +2762,8 @@ navitia2 (1.3.3) unstable; urgency=low
 
 navitia2 (1.3.2) unstable; urgency=low
 
-  * StreetNetwork: correction for oneway street projection <https://github.com/CanalTP/navitia/pull/662> 
-  * Geopal: remove doublon of nodes <https://github.com/CanalTP/navitia/pull/661> 
+  * StreetNetwork: correction for oneway street projection <https://github.com/CanalTP/navitia/pull/662>
+  * Geopal: remove doublon of nodes <https://github.com/CanalTP/navitia/pull/661>
 
  -- antoine-de <antoine.desbordes@gmail.com>  Fri, 24 Oct 2014 16:10:34 +0100
 
@@ -2447,13 +2862,13 @@ navitia2 (1.1.3) unstable; urgency=medium
 
 navitia2 (1.1.2) unstable; urgency=low
 
-  * Cities: add tolerance for ST_DWITHIN for postgis 1.5 
+  * Cities: add tolerance for ST_DWITHIN for postgis 1.5
 
  -- Antoine Desbordes <antoine.desbordes@canaltp.fr>  Mon, 22 Sep 2014 13:44:13 +0100
 
 navitia2 (1.1.1) unstable; urgency=low
 
-  * Cities: change cmake conf to embbed alembic 
+  * Cities: change cmake conf to embbed alembic
 
  -- Antoine Desbordes <antoine.desbordes@canaltp.fr>  Mon, 22 Sep 2014 11:44:13 +0100
 
@@ -2503,7 +2918,7 @@ navitia2 (1.0.0) unstable; urgency=low
   * Jormungandr: take crow fly mode a a fall back mode in tags  <https://github.com/CanalTP/navitia/pull/524>
   * timezone: Technical implementation of time zone in
     <https://github.com/CanalTP/navitia/pull/493> , but some stuff still need
-    to be done, so it has been deactivated by <https://github.com/CanalTP/navitia/pull/512> 
+    to be done, so it has been deactivated by <https://github.com/CanalTP/navitia/pull/512>
     and timezone hidden in json results by  <https://github.com/CanalTP/navitia/pull/523>
   * Routing: add more tests on stay in  <https://github.com/CanalTP/navitia/pull/522>
   * Georef: add test to djikstra limit  <https://github.com/CanalTP/navitia/pull/521>
@@ -2551,7 +2966,7 @@ navitia2 (0.102.1) unstable; urgency=low
 
 navitia2 (0.102.0) unstable; urgency=low
 
-  * Fare: fix cg37 fare <https://github.com/CanalTP/navitia/pull/494> 
+  * Fare: fix cg37 fare <https://github.com/CanalTP/navitia/pull/494>
 
  -- Antoine Desbordes <antoine.desbordes@canaltp.fr>  Wed, 20 Aug 2014 16:44:13 +0100
 
@@ -2595,7 +3010,7 @@ navitia2 (0.100.2) unstable; urgency=low
 
 navitia2 (0.100.1) unstable; urgency=low
 
-  * autocomplete: correction calculation quality  <https://github.com/CanalTP/navitia/pull/442> 
+  * autocomplete: correction calculation quality  <https://github.com/CanalTP/navitia/pull/442>
 
  -- Vincent Lara <vincent.lara@canaltp.fr>  Thu, 25 Jul 2014 16:26:13 +0100
 
@@ -2647,13 +3062,13 @@ navitia2 (0.99.0) unstable; urgency=low
 
 navitia2 (0.98.3) unstable; urgency=low
 
-  * Jormungandr: authentication changes for lines api 
+  * Jormungandr: authentication changes for lines api
 
  -- antoine-de <antoine.desbordes@gmail.com>  Thu, 26 Jun 2014 17:06:20 +0100
 
 navitia2 (0.98.1) unstable; urgency=low
 
-  * Ed: change data version 
+  * Ed: change data version
 
  -- antoine-de <antoine.desbordes@gmail.com>  Tue, 24 Jun 2014 18:06:06 +0100
 
@@ -2687,25 +3102,25 @@ navitia2 (0.98.0) unstable; urgency=low
 
 navitia2 (0.97.5) unstable; urgency=low
 
-  * Jormungandr: hotfix for show codes and V0 
+  * Jormungandr: hotfix for show codes and V0
 
  -- antoine-de <antoine.desbordes@gmail.com>  Tue, 17 Jun 2014 10:06:06 +0100
 
 navitia2 (0.97.4) unstable; urgency=low
 
-  * Jormungandr: second hotfix for demo.navitia.io 
+  * Jormungandr: second hotfix for demo.navitia.io
 
  -- antoine-de <antoine.desbordes@gmail.com>  Mon, 16 Jun 2014 16:06:13 +0100
 
 navitia2 (0.97.3) unstable; urgency=low
 
-  * Jormungandr: V0 hotfix for demo.navitia.io 
+  * Jormungandr: V0 hotfix for demo.navitia.io
 
  -- antoine-de <antoine.desbordes@gmail.com>  Mon, 16 Jun 2014 16:06:42 +0100
 
 navitia2 (0.97.2) unstable; urgency=low
 
-  * Jormungandr: multi coverage handling 
+  * Jormungandr: multi coverage handling
   * Stats: add recovery for rabbitmq
   * Jormungandr: better reverse proxy handling (http/https in link)
 

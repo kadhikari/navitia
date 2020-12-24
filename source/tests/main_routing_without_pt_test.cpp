@@ -22,7 +22,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 Stay tuned using
-twitter @navitia 
+twitter @navitia
 IRC #navitia on freenode
 https://groups.google.com/d/forum/navitia
 www.navitia.io
@@ -37,8 +37,7 @@ int main(int argc, const char* const argv[]) {
 
     routing_api_data<normal_speed_provider> routing_data(200, false);
 
-    mock_kraken kraken(routing_data.b, "main_routing_without_pt_test", argc, argv);
+    mock_kraken kraken(routing_data.b, argc, argv);
 
     return 0;
 }
-

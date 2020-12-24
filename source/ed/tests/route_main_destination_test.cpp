@@ -1,28 +1,28 @@
 /* Copyright © 2001-2014, Canal TP and/or its affiliates. All rights reserved.
-  
+
 This file is part of Navitia,
     the software to build cool stuff with public transport.
- 
+
 Hope you'll enjoy and contribute to this project,
     powered by Canal TP (www.canaltp.fr).
 Help us simplify mobility and open public transport:
     a non ending quest to the responsive locomotion way of traveling!
-  
+
 LICENCE: This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
-   
+
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Affero General Public License for more details.
-   
+
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
-  
+
 Stay tuned using
-twitter @navitia 
+twitter @navitia
 IRC #navitia on freenode
 https://groups.google.com/d/forum/navitia
 www.navitia.io
@@ -35,24 +35,24 @@ www.navitia.io
 #include "ed/types.h"
 
 struct logger_initialized {
-    logger_initialized()   { init_logger(); }
+    logger_initialized() { navitia::init_logger(); }
 };
-BOOST_GLOBAL_FIXTURE( logger_initialized );
+BOOST_GLOBAL_FIXTURE(logger_initialized);
 
-
-BOOST_AUTO_TEST_CASE(route_main_destination){
-/*
-Route1
-    VJ1         VJ2     VJ3
-    A1          A1      A1
-    A2          A2      A2
-    A3          A3      A3
-                A4
-*/
+BOOST_AUTO_TEST_CASE(route_main_destination) {
+    /*
+    Route1
+        VJ1         VJ2     VJ3
+        A1          A1      A1
+        A2          A2      A2
+        A3          A3      A3
+                    A4
+    */
     ed::Data data;
     data.meta.production_date = {"20140101"_d, "20150101"_d};
-    data.tz_wrapper.tz_handler = navitia::type::TimeZoneHandler{"utc", "20140101"_d, {{0, {data.meta.production_date}}}};
-    auto *route = new ed::types::Route();
+    data.tz_wrapper.tz_handler =
+        navitia::type::TimeZoneHandler{"utc", "20140101"_d, {{0, {data.meta.production_date}}}};
+    auto* route = new ed::types::Route();
     route->idx = 0;
     data.routes.push_back(route);
 
@@ -138,14 +138,14 @@ Route1
     data.complete();
     data.build_route_destination();
     BOOST_CHECK_EQUAL(route->destination->name, "A3");
-/*
-Route1 (Destination READY_DESTINATION)
-    VJ1         VJ2     VJ3
-    A1          A1      A1
-    A2          A2      A2
-    A3          A3      A3
-                A4
-*/
+    /*
+    Route1 (Destination READY_DESTINATION)
+        VJ1         VJ2     VJ3
+        A1          A1      A1
+        A2          A2      A2
+        A3          A3      A3
+                    A4
+    */
     // Already destination
     ed::types::StopArea* ready = new ed::types::StopArea();
     ready->name = "READY_DESTINATION";
@@ -155,7 +155,7 @@ Route1 (Destination READY_DESTINATION)
     BOOST_CHECK_EQUAL(route->destination->name, "READY_DESTINATION");
 
     // Route without StopTimes
-    auto *route1 = new ed::types::Route();
+    auto* route1 = new ed::types::Route();
     route1->idx = 1;
     data.routes.push_back(route1);
     vj1 = new ed::types::VehicleJourney();
@@ -163,5 +163,4 @@ Route1 (Destination READY_DESTINATION)
     vj1->route = route1;
     data.build_route_destination();
     BOOST_CHECK(!route1->destination);
-
 }

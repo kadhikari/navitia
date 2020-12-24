@@ -59,3 +59,13 @@
     * les fichiers contributors.txt et datasets.txt sont obligatoires, ainsi que le lien entre "trip" et "dataset_id"
     * le champ "comment_value" est renommé "comment_name" (conformité avec le code)
     * les valeurs de comment_type changent
+* Version 0.7.2 du 30/10/2018
+    * dans le fichier stops.txt, suppresion du "location_type = 3" qui n'est pas utilisé
+* Version 0.7.3 du 12/11/2018
+    * ajout du mode physique SuspendedCableCar pour les Téléphérique / télécabine
+* Version 0.7.4 du 21/02/2019
+    * modification des propriétés présentes dans le fichier feed_info
+* Version 0.8 du 25/03/2019
+    * Ajout de la gestion des pathways
+* Version 0.9 du 16/05/2019
+    * AJout du nouveau modèle tarifaire

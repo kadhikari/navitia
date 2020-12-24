@@ -21,11 +21,13 @@ Dependencies
 
 #. Python
 
-   Each python module have a pip requirements.txt file that list it's dependencies.
+   Each python module have a pip requirements.txt (and some of them a requirements_dev.txt) file that list it's dependencies.
 
    To install the dependencies for a module use `pip` (you can also wrap that in a virtualenv):
 
    ``pip install -r {path_to_navitia_source}/jormungandr/requirements.txt``
+
+   ``pip install -r {path_to_navitia_source}/jormungandr/requirements_dev.txt``
 
 
 #. Other
@@ -83,10 +85,10 @@ Testing
       #. if your postgis version is newer than 2.0, just call create extention
 
          ``su postgres; #or the user you installed postgres with``
-      
+
          ``psql -d yourdatabase -c "CREATE EXTENSION postgis;"``
 
-      #. else call the init_db.sh script with a settings file. 
+      #. else call the init_db.sh script with a settings file.
 
          Copy the file source/script/settings.sh and update it with your parameters
 
@@ -96,7 +98,7 @@ Testing
 
          ``./init_db.sh your_settings.sh``
 
-         
+
    #. Update the database scheme (with the usual user, not with 'postgres' anymore)
 
       ``cd source/sql``

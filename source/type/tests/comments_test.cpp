@@ -35,24 +35,22 @@ www.navitia.io
 #include "ed/build_helper.h"
 #include "type/pt_data.h"
 #include "type/type.h"
+#include "type/serialization.h"
 #include "tests/utils_test.h"
 #include "type/comment_container.h"
 #include <memory>
-#include <boost/archive/text_oarchive.hpp>
 #include <string>
 #include <type_traits>
-
+#include "utils/logger.h"
 
 struct logger_initialized {
-    logger_initialized()   { init_logger(); }
+    logger_initialized() { navitia::init_logger(); }
 };
-BOOST_GLOBAL_FIXTURE( logger_initialized );
-
+BOOST_GLOBAL_FIXTURE(logger_initialized);
 
 BOOST_AUTO_TEST_CASE(comment_map_test) {
-
     ed::builder b("20120614");
-    b.vj("A")("stop1", 8000, 8050)("stop2", 8100,8150);
+    b.vj("A")("stop1", 8000, 8050)("stop2", 8100, 8150);
     b.data->pt_data->sort_and_index();
     b.finish();
 
@@ -60,7 +58,7 @@ BOOST_AUTO_TEST_CASE(comment_map_test) {
 
     const nt::Line* l = b.data->pt_data->lines[0];
     comments_container.add(l, "bob");
-    nt::Line* l2 = b.data->pt_data->lines[0]; //to test with const or no const type
+    nt::Line* l2 = b.data->pt_data->lines[0];  // to test with const or no const type
     comments_container.add(l2, "bobette");
 
     comments_container.add(b.data->pt_data->stop_areas[0], "sabob");
@@ -84,7 +82,6 @@ BOOST_AUTO_TEST_CASE(comment_map_test) {
     expected = {"st com"};
     BOOST_CHECK_EQUAL(comments_container.get(b.data->pt_data->vehicle_journeys[0]->stop_time_list.front()), expected);
 
-
-    boost::archive::text_oarchive oa(std::cout);
-    oa & comments_container;
+    boost::archive::binary_oarchive oa(std::cout);
+    oa& comments_container;
 }

@@ -1,28 +1,28 @@
 /* Copyright © 2001-2014, Canal TP and/or its affiliates. All rights reserved.
-  
+
 This file is part of Navitia,
     the software to build cool stuff with public transport.
- 
+
 Hope you'll enjoy and contribute to this project,
     powered by Canal TP (www.canaltp.fr).
 Help us simplify mobility and open public transport:
     a non ending quest to the responsive locomotion way of traveling!
-  
+
 LICENCE: This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
-   
+
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Affero General Public License for more details.
-   
+
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
-  
+
 Stay tuned using
-twitter @navitia 
+twitter @navitia
 IRC #navitia on freenode
 https://groups.google.com/d/forum/navitia
 www.navitia.io
@@ -37,14 +37,14 @@ www.navitia.io
 #include "utils/base64_encode.h"
 
 struct logger_initialized {
-    logger_initialized()   { init_logger(); }
+    logger_initialized() { navitia::init_logger(); }
 };
-BOOST_GLOBAL_FIXTURE( logger_initialized );
+BOOST_GLOBAL_FIXTURE(logger_initialized);
 
 using namespace navitia::fare;
 using namespace ed::connectors;
 
-BOOST_AUTO_TEST_CASE(parse_state_test){
+BOOST_AUTO_TEST_CASE(parse_state_test) {
     State state;
 
     // * correspond au state vide, toujours vrai
@@ -59,7 +59,7 @@ BOOST_AUTO_TEST_CASE(parse_state_test){
     // on ignore les espaces
     BOOST_CHECK(parse_state(" mode = Metro  ").mode == navitia::encode_uri("metro"));
     BOOST_CHECK(parse_state("line=L1").line == navitia::encode_uri("l1"));
-    //parse_state("stop_area=chatelet").stop_area;
+    // parse_state("stop_area=chatelet").stop_area;
     std::cout << parse_state("stoparea=chatelet").stop_area << std::endl;
     std::cout << navitia::encode_uri("chatelet") << std::endl;
     BOOST_CHECK(parse_state("stoparea=chatelet").stop_area == navitia::encode_uri("chatelet"));
@@ -69,7 +69,6 @@ BOOST_AUTO_TEST_CASE(parse_state_test){
 
     // On ne respecte pas la grammaire => exception
     BOOST_CHECK_THROW(parse_state("coucou=moo"), invalid_key);
-
 
     // On essaye de parser des choses plus compliquées
     State state2 = parse_state("mode=metro&stoparea=chatelet");
@@ -83,8 +82,7 @@ BOOST_AUTO_TEST_CASE(parse_state_test){
     BOOST_CHECK_THROW(parse_state("mode < bli"), invalid_key);
 }
 
-
-BOOST_AUTO_TEST_CASE(parse_condition_test){
+BOOST_AUTO_TEST_CASE(parse_condition_test) {
     BOOST_CHECK_THROW(parse_condition("moo"), invalid_condition);
 
     Condition cond = parse_condition(" key = value ");

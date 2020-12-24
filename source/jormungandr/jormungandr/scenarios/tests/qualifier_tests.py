@@ -33,124 +33,13 @@ from jormungandr.utils import str_to_time_stamp
 from six.moves import range
 
 
-
-#journey.arrival_date_time
-#journey.duration
-#journey.nb_transfers
-#journeys.sections[i].type
-#journeys.sections[i].duration
-#journey.sections
-def qualifier_one_direct_test():
-    journeys = []
-    journey_direct = response_pb2.Journey()
-    journey_direct.arrival_date_time = str_to_time_stamp("20131107T151200")
-    journey_direct.duration = 25 * 60
-    journey_direct.nb_transfers = 0
-    journey_direct.sections.add()
-    journey_direct.sections.add()
-
-    journey_direct.sections[0].type = response_pb2.STREET_NETWORK
-    journey_direct.sections[0].duration = 2 * 60
-
-    journey_direct.sections[1].type = response_pb2.STREET_NETWORK
-    journey_direct.sections[1].duration = 4 * 60
-    journeys.append(journey_direct)
-
-    qualifier.qualifier_one(journeys, "departure")
-
-    assert("non_pt" in journey_direct.type)
-
-
-# Test with 5 journeys
-# a standard with 3 tranfers and 60mn trip
-# the fastest with 2 transfers and 62 mn trip
-# the healthiest with 1 transfert, 65 mn trip and more walk
-# the most confortable with 1 transfert and 80mn trip and less walk
-def qualifier_two_test():
-    journeys = []
-
-    journey_standard = response_pb2.Journey()
-    journey_standard.type = "none"
-    journey_standard.arrival_date_time = str_to_time_stamp("20131107T150000")
-    journey_standard.duration = 60 * 60
-    journey_standard.nb_transfers = 3
-    journey_standard.sections.add()
-    journey_standard.sections.add()
-    journey_standard.sections.add()
-    journey_standard.sections.add()
-
-    journey_standard.sections[0].type = response_pb2.STREET_NETWORK
-    journey_standard.sections[0].duration = 10 * 60
-
-    journey_standard.sections[-1].type = response_pb2.STREET_NETWORK
-    journey_standard.sections[-1].duration = 10 * 60
-    journeys.append(journey_standard)
-
-    journey_rapid = response_pb2.Journey()
-    journey_rapid.arrival_date_time = str_to_time_stamp("20131107T150500")
-    journey_rapid.duration = 62 * 60
-    journey_rapid.nb_transfers = 2
-    journey_rapid.sections.add()
-    journey_rapid.sections.add()
-    journey_rapid.sections.add()
-
-    journey_rapid.sections[0].type = response_pb2.STREET_NETWORK
-    journey_rapid.sections[0].duration = 10 * 60
-
-    journey_rapid.sections[-1].type = response_pb2.STREET_NETWORK
-    journey_rapid.sections[-1].duration = 10 * 60
-    journeys.append(journey_rapid)
-
-    journey_health = response_pb2.Journey()
-    journey_health.arrival_date_time = str_to_time_stamp("20131107T151000")
-    journey_health.duration = 70 * 60
-    journey_health.nb_transfers = 1
-    journey_health.sections.add()
-    journey_health.sections.add()
-    journey_health.sections.add()
-
-    journey_health.sections[0].type = response_pb2.STREET_NETWORK
-    journey_health.sections[0].duration = 15 * 60
-
-    journey_health.sections[1].type = response_pb2.TRANSFER
-    journey_health.sections[1].duration = 10 * 60
-
-    journey_health.sections[-1].type = response_pb2.STREET_NETWORK
-    journey_health.sections[-1].duration = 10 * 60
-    journeys.append(journey_health)
-
-    journey_confort = response_pb2.Journey()
-    journey_confort.arrival_date_time = str_to_time_stamp("20131107T152000")
-    journey_confort.duration = 80 * 60
-    journey_confort.nb_transfers = 1
-    journey_confort.sections.add()
-    journey_confort.sections.add()
-    journey_confort.sections.add()
-
-    journey_confort.sections[0].type = response_pb2.STREET_NETWORK
-    journey_confort.sections[0].duration = 5 * 60
-
-    journey_confort.sections[-1].type = response_pb2.STREET_NETWORK
-    journey_confort.sections[-1].duration = 5 * 60
-    journeys.append(journey_confort)
-
-    qualifier.qualifier_one(journeys, "departure")
-
-    assert journey_standard.type ==  "fastest"  # the standard should be the fastest
-    assert journey_rapid.type ==  "rapid"
-
-    #TODO! refacto this test with custom rules not to depends on changing business rules
-#    assert journey_confort.type ==  "comfort"
-#    assert journey_health.type ==  "healthy"
-
-
 def has_car_test():
     journey = response_pb2.Journey()
     journey.sections.add()
     section = journey.sections[0]
     section.type = response_pb2.STREET_NETWORK
     section.street_network.mode = response_pb2.Car
-    assert(qualifier.has_car(journey))
+    assert qualifier.has_car(journey)
 
     foot_journey = response_pb2.Journey()
     foot_journey.sections.add()
@@ -159,17 +48,17 @@ def has_car_test():
     foot_journey.sections[0].street_network.mode = response_pb2.Walking
     foot_journey.sections[1].street_network.mode = response_pb2.Bike
     foot_journey.sections[2].street_network.mode = response_pb2.Bss
-    assert(not qualifier.has_car(foot_journey))
+    assert not qualifier.has_car(foot_journey)
 
     foot_journey.sections.add()
     foot_journey.sections[3].type = response_pb2.STREET_NETWORK
     foot_journey.sections[3].street_network.mode = response_pb2.Car
-    assert(qualifier.has_car(foot_journey))
+    assert qualifier.has_car(foot_journey)
 
 
 def standard_choice_test():
     journeys = []
-    #the first is the worst one
+    # the first is the worst one
     journey_worst = response_pb2.Journey()
     journey_worst.arrival_date_time = str_to_time_stamp("20131107T161200")
     journey_worst.sections.add()
@@ -189,7 +78,7 @@ def standard_choice_test():
 
     journeys.append(journey_not_good)
 
-    #this is the standard
+    # this is the standard
     journey_1 = response_pb2.Journey()
     journey_1.arrival_date_time = str_to_time_stamp("20131107T151200")
     journey_1.sections.add()
@@ -213,11 +102,12 @@ def standard_choice_test():
 
     print(qualifier.has_car(standard))
     print("standard ", standard.arrival_date_time)
-    assert standard ==  journey_1
+    assert standard == journey_1
+
 
 def standard_choice_with_pt_test():
     journeys = []
-    #the first is the worst one
+    # the first is the worst one
     journey_worst = response_pb2.Journey()
     journey_worst.arrival_date_time = str_to_time_stamp("20131107T161200")
     journey_worst.sections.add()
@@ -237,7 +127,7 @@ def standard_choice_with_pt_test():
 
     journeys.append(journey_not_good)
 
-    #this is the standard
+    # this is the standard
     journey_1 = response_pb2.Journey()
     journey_1.arrival_date_time = str_to_time_stamp("20131107T201200")
     journey_1.sections.add()
@@ -259,7 +149,8 @@ def standard_choice_with_pt_test():
 
     print(qualifier.has_car(standard))
     print("standard ", standard.arrival_date_time)
-    assert standard ==  journey_1
+    assert standard == journey_1
+
 
 def choose_standard_pt_car():
     journeys = []
@@ -271,11 +162,18 @@ def choose_standard_pt_car():
     journey1.sections[0].type = response_pb2.STREET_NETWORK
     journey1.sections[0].street_ne
 
+
 def tranfers_cri_test():
     journeys = []
 
-    dates = ["20131107T100000", "20131107T150000", "20131107T050000",
-             "20131107T100000", "20131107T150000", "20131107T050000"]
+    dates = [
+        "20131107T100000",
+        "20131107T150000",
+        "20131107T050000",
+        "20131107T100000",
+        "20131107T150000",
+        "20131107T050000",
+    ]
     transfers = [4, 3, 8, 1, 1, 2]
     for i in range(6):
         journey = response_pb2.Journey()
@@ -284,51 +182,12 @@ def tranfers_cri_test():
 
         journeys.append(journey)
 
-    best = qualifier.min_from_criteria(journeys, [qualifier.transfers_crit,
-                                                  qualifier.arrival_crit])
+    best = qualifier.min_from_criteria(journeys, [qualifier.transfers_crit, qualifier.arrival_crit])
 
-    #the transfert criterion is first, and then if 2 journeys have
-    #the same nb_transfers, we compare the dates
-    assert best.nb_transfers ==  1
-    assert best.arrival_date_time ==  str_to_time_stamp("20131107T100000")
-
-def qualifier_crowfly_test():
-    journeys = []
-
-    journey_standard = response_pb2.Journey()
-    journey_standard.arrival_date_time = str_to_time_stamp('20140825T113224')
-    journey_standard.duration = 2620
-    journey_standard.nb_transfers = 1
-    journey_standard.sections.add()
-    journey_standard.sections.add()
-    journey_standard.sections.add()
-
-    journey_standard.sections[0].type = response_pb2.CROW_FLY
-    journey_standard.sections[0].duration = 796
-
-    journey_standard.sections[-1].type = response_pb2.CROW_FLY
-    journey_standard.sections[-1].duration = 864
-    journeys.append(journey_standard)
-
-    journey_health = response_pb2.Journey()
-    journey_health.arrival_date_time = str_to_time_stamp('20140825T114000')
-    journey_health.duration = 3076
-    journey_health.nb_transfers = 1
-    journey_health.sections.add()
-    journey_health.sections.add()
-    journey_health.sections.add()
-
-    journey_health.sections[0].type = response_pb2.CROW_FLY
-    journey_health.sections[0].duration = 796
-
-    journey_health.sections[-1].type = response_pb2.CROW_FLY
-    journey_health.sections[-1].duration = 0
-    journeys.append(journey_health)
-
-    qualifier.qualifier_one(journeys, "departure")
-
-    assert journey_standard.type ==  "rapid"  # the standard should be the fastest
-    assert journey_health.type ==  "less_fallback_walk"
+    # the transfert criterion is first, and then if 2 journeys have
+    # the same nb_transfers, we compare the dates
+    assert best.nb_transfers == 1
+    assert best.arrival_date_time == str_to_time_stamp("20131107T100000")
 
 
 def qualifier_nontransport_duration_only_walk_test():
@@ -349,7 +208,7 @@ def qualifier_nontransport_duration_only_walk_test():
     journey.sections[-1].type = response_pb2.STREET_NETWORK
     journey.sections[-1].duration = 864
 
-    assert qualifier.get_nontransport_duration(journey) ==  1988
+    assert qualifier.get_nontransport_duration(journey) == 1988
 
 
 def qualifier_nontransport_duration_with_tc_test():
@@ -382,4 +241,4 @@ def qualifier_nontransport_duration_with_tc_test():
     journey.sections[-1].type = response_pb2.STREET_NETWORK
     journey.sections[-1].duration = 864
 
-    assert qualifier.get_nontransport_duration(journey) ==  2797
+    assert qualifier.get_nontransport_duration(journey) == 2797

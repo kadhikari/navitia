@@ -32,7 +32,7 @@ from __future__ import absolute_import, print_function, unicode_literals, divisi
 import mock
 from pytest import raises
 
-from jormungandr.tests.utils_test import MockRequests, MockResponse, user_set, FakeUser
+from jormungandr.tests.utils_test import user_set, FakeUser
 from tests.check_utils import is_valid_global_autocomplete
 from tests import check_utils
 from tests.tests_mechanism import NewDefaultScenarioAbstractTestFixture
@@ -41,7 +41,9 @@ from jormungandr import app
 from six.moves.urllib.parse import urlencode
 from .tests_mechanism import config
 from copy import deepcopy
-import os
+import requests_mock
+from contextlib import contextmanager
+
 
 class FakeUserBragi(FakeUser):
     @classmethod
@@ -51,36 +53,29 @@ class FakeUserBragi(FakeUser):
         """
         return user_in_db_bragi[token]
 
+
 def geojson():
-    return '{"type": "Feature", "geometry": ' \
-           '{"type": "Point", "coordinates": [102.0, 0.5]}, "properties": {"prop0": "value0"}}'
+    return (
+        '{"type": "Feature", "geometry": '
+        '{"type": "Point", "coordinates": [102.0, 0.5]}, "properties": {"prop0": "value0"}}'
+    )
+
 
 user_in_db_bragi = {
-    'test_user_no_shape': FakeUserBragi('test_user_no_shape', 1,
-                                        have_access_to_free_instances=False, is_super_user=True),
-    'test_user_with_shape': FakeUserBragi('test_user_with_shape', 2,
-                                          True, False, False, shape=geojson()),
-    'test_user_with_coord': FakeUserBragi('test_user_with_coord', 2,
-                                          True, False, False, default_coord="12;42"),
+    'test_user_no_shape': FakeUserBragi(
+        'test_user_no_shape', 1, have_access_to_free_instances=False, is_super_user=True
+    ),
+    'test_user_with_shape': FakeUserBragi('test_user_with_shape', 2, True, False, False, shape=geojson()),
+    'test_user_with_coord': FakeUserBragi('test_user_with_coord', 2, True, False, False, default_coord="12;42"),
 }
 
 
-MOCKED_INSTANCE_CONF = {
-    'instance_config': {
-        'default_autocomplete': 'bragi'
-    }
-}
+MOCKED_INSTANCE_CONF = {'instance_config': {'default_autocomplete': 'bragi'}}
 
 BRAGI_MOCK_RESPONSE = {
     "features": [
         {
-            "geometry": {
-                "coordinates": [
-                    3.282103,
-                    49.847586
-                ],
-                "type": "Point"
-            },
+            "geometry": {"coordinates": [3.282103, 49.847586], "type": "Point"},
             "properties": {
                 "geocoding": {
                     "city": "Bobtown",
@@ -101,39 +96,145 @@ BRAGI_MOCK_RESPONSE = {
                             "name": "Bobtown",
                             "zip_codes": ["02000"],
                             "weight": 1,
-                            "coord": {
-                                "lat": 48.8396154,
-                                "lon": 2.3957517
-                            }
+                            "coord": {"lat": 48.8396154, "lon": 2.3957517},
                         }
                     ],
                 }
             },
-            "type": "Feature"
+            "type": "Feature",
+            "distance": 400,
         }
+    ]
+}
+
+BRAGI_MOCK_REVERSE_RESPONSE_NEW_ID_FMT = {
+    "features": [
+        {
+            "geometry": {"coordinates": [3.282103, 49.847586], "type": "Point"},
+            "properties": {
+                "geocoding": {
+                    "city": "Bobtown",
+                    "housenumber": "20",
+                    "id": "49.847586;3.282103-12",  # <- the id has a new format
+                    "label": "20 Rue Bob (Bobtown)",
+                    "name": "Rue Bob",
+                    "postcode": "02100",
+                    "street": "Rue Bob",
+                    "type": "house",
+                    "citycode": "02000",
+                    "administrative_regions": [
+                        {
+                            "id": "admin:fr:02000",
+                            "insee": "02000",
+                            "level": 8,
+                            "label": "Bobtown (02000)",
+                            "name": "Bobtown",
+                            "zip_codes": ["02000"],
+                            "weight": 1,
+                            "coord": {"lat": 48.8396154, "lon": 2.3957517},
+                        }
+                    ],
+                }
+            },
+            "type": "Feature",
+            "distance": 400,
+        }
+    ]
+}
+
+BRAGI_BOB_STREET_NEW_ID_FMT = {
+    "features": [
+        {
+            "geometry": {"coordinates": [0.00188646, 0.00071865], "type": "Point"},
+            "properties": {
+                "geocoding": {
+                    "city": "Bobtown",
+                    "housenumber": "20",
+                    "id": "addr:"
+                    + check_utils.r_coord
+                    + "-random-postfix",  # the id has a postfix, it should not be a pb
+                    "label": "20 Rue Bob (Bobtown)",
+                    "name": "Rue Bob",
+                    "postcode": "02100",
+                    "street": "Rue Bob",
+                    "type": "house",
+                    "citycode": "02000",
+                    "administrative_regions": [
+                        {
+                            "id": "admin:fr:02000",
+                            "insee": "02000",
+                            "level": 8,
+                            "label": "Bobtown (02000)",
+                            "name": "Bobtown",
+                            "zip_codes": ["02000"],
+                            "weight": 1,
+                            "coord": {"lat": 48.8396154, "lon": 2.3957517},
+                        }
+                    ],
+                }
+            },
+            "type": "Feature",
+        }
+    ]
+}
+
+
+BRAGI_MOCK_ZONE = {
+    "features": [
+        {
+            "type": "Feature",
+            "geometry": {"coordinates": [2.3514616, 48.8566969], "type": "Point"},
+            "properties": {
+                "geocoding": {
+                    "id": "admin:fr:75056",
+                    "type": "zone",
+                    "zone_type": "city",
+                    "label": "Paris (75000-75116), Île-de-France, France",
+                    "name": "Paris",
+                    "postcode": "75000;75001;75002;75003;75004;75005;75006;75007;75008;75009;75010;75011;75012;75013;75014;75015;75016;75017;75018;75019;75020;75116",
+                    "city": None,
+                    "citycode": "75056",
+                    "level": 8,
+                    "administrative_regions": [],
+                    "codes": [{"name": "ref:FR:MGP", "value": "T1"}, {"name": "ref:INSEE", "value": "75056"}],
+                    "bbox": [2.224122, 48.8155755, 2.4697602, 48.902156],
+                }
+            },
+        },
+        {
+            "type": "Feature",
+            "geometry": {"coordinates": [2.374402147020069, 48.84691600012601], "type": "Point"},
+            "properties": {
+                "geocoding": {
+                    "id": "admin:fr:7511248",
+                    "type": "zone",
+                    "zone_type": "suburb",
+                    "label": "Quartier des Quinze-Vingts (75012), Paris 12e Arrondissement, Paris, Île-de-France, France",
+                    "name": "Quartier des Quinze-Vingts",
+                    "postcode": "75012",
+                    "city": None,
+                    "citycode": "7511248",
+                    "level": 10,
+                    "administrative_regions": [],
+                    "codes": [{"name": "ref:INSEE", "value": "7511248"}],
+                    "bbox": [2.3644295, 48.8401716, 2.3843422, 48.853255399999995],
+                }
+            },
+        },
     ]
 }
 
 
 BRAGI_MOCK_TYPE_UNKNOWN = {
     "type": "FeatureCollection",
-    "geocoding": {
-        "version": "0.1.0",
-        "query": ""
-    },
+    "geocoding": {"version": "0.1.0", "query": ""},
     "features": [
         {
             "type": "Feature",
-            "geometry": {
-                "coordinates": [
-                    3.1092154,
-                    50.6274528
-                ],
-                "type": "Point"
-            },
+            "geometry": {"coordinates": [3.1092154, 50.6274528], "type": "Point"},
             "properties": {
                 "geocoding": {
-                    "id": "admin:osm:2643160",
+                    "id": "admin:osm:relation:2643160",
                     "type": "unknown",
                     "label": "Hellemmes-Lille",
                     "name": "Hellemmes-Lille",
@@ -141,19 +242,13 @@ BRAGI_MOCK_TYPE_UNKNOWN = {
                     "city": None,
                     "citycode": "",
                     "level": 9,
-                    "administrative_regions": []
+                    "administrative_regions": [],
                 }
-            }
+            },
         },
         {
             "type": "Feature",
-            "geometry": {
-                "coordinates": [
-                    3.0706414,
-                    50.6305089
-                ],
-                "type": "Point"
-            },
+            "geometry": {"coordinates": [3.0706414, 50.6305089], "type": "Point"},
             "properties": {
                 "geocoding": {
                     "id": "admin:fr:59350",
@@ -164,43 +259,32 @@ BRAGI_MOCK_TYPE_UNKNOWN = {
                     "city": None,
                     "citycode": "59350",
                     "level": 8,
-                    "administrative_regions": []
+                    "administrative_regions": [],
                 }
-            }
-        }
-    ]
+            },
+        },
+    ],
 }
 
 
 BRAGI_MOCK_POI_WITHOUT_ADDRESS = {
     "features": [
         {
-            "geometry": {
-                "coordinates": [
-                    0.0000898312,
-                    0.0000898312
-                ],
-                "type": "Point"
-            },
+            "geometry": {"coordinates": [0.0000898312, 0.0000898312], "type": "Point"},
             "properties": {
                 "geocoding": {
                     "city": "Bobtown",
                     "id": "bobette",
                     "label": "bobette's label",
                     "name": "bobette",
-                    "poi_types": [
-                        {
-                            "id": "poi_type:amenity:bicycle_rental",
-                            "name": "Station VLS"
-                        }
-                    ],
+                    "poi_types": [{"id": "poi_type:amenity:bicycle_rental", "name": "Station VLS"}],
                     "postcode": "02100",
                     "type": "poi",
                     "citycode": "02000",
                     "properties": [
                         {"key": "amenity", "value": "bicycle_rental"},
                         {"key": "capacity", "value": "20"},
-                        {"key": "ref", "value": "12"}
+                        {"key": "ref", "value": "12"},
                     ],
                     "administrative_regions": [
                         {
@@ -211,15 +295,13 @@ BRAGI_MOCK_POI_WITHOUT_ADDRESS = {
                             "name": "Bobtown",
                             "zip_codes": ["02000"],
                             "weight": 1,
-                            "coord": {
-                                "lat": 48.8396154,
-                                "lon": 2.3957517
-                            }
+                            "coord": {"lat": 48.8396154, "lon": 2.3957517},
                         }
                     ],
-                    }
+                }
             },
-            "type": "Feature"
+            "type": "Feature",
+            "distance": 400,
         }
     ]
 }
@@ -227,52 +309,59 @@ BRAGI_MOCK_POI_WITHOUT_ADDRESS = {
 BRAGI_MOCK_STOP_AREA_WITH_MORE_ATTRIBUTS = {
     "features": [
         {
-            "geometry": {
-                "coordinates": [
-                    0.0000898312,
-                    0.0000898312
-                ],
-                "type": "Point"
-            },
+            "geometry": {"coordinates": [0.0000898312, 0.0000898312], "type": "Point"},
             "properties": {
                 "geocoding": {
                     "city": "Bobtown",
                     "id": "bobette",
                     "label": "bobette's label",
                     "name": "bobette",
-                    "poi_types": [
-                        {
-                            "id": "poi_type:amenity:bicycle_rental",
-                            "name": "Station VLS"
-                        }
-                    ],
+                    "poi_types": [{"id": "poi_type:amenity:bicycle_rental", "name": "Station VLS"}],
                     "postcode": "02100",
                     "type": "public_transport:stop_area",
                     "citycode": "02000",
                     "properties": [
-                        {"key": "name",
-                         "value": "railway station"},
-                        {"key": "code",
-                         "value": "station:01"}
+                        {"key": "name", "value": "railway station"},
+                        {"key": "code", "value": "station:01"},
                     ],
                     "commercial_modes": [
-                        {"id": "cm_id:Bus",
-                         "name": "cm_name:Bus"},
-                        {"id": "cm_id:Car",
-                         "name": "cm_name:Car"}
+                        {"id": "cm_id:Bus", "name": "cm_name:Bus"},
+                        {"id": "cm_id:Car", "name": "cm_name:Car"},
                     ],
                     "physical_modes": [
-                        {"id": "pm_id:Bus",
-                         "name": "pm_name:Bus"},
-                        {"id": "pm_id:Car",
-                         "name": "pm_name:Car"}
+                        {"id": "pm_id:Bus", "name": "pm_name:Bus"},
+                        {"id": "pm_id:Car", "name": "pm_name:Car"},
                     ],
-                    "codes": [
-                        {"name": "navitia1",
-                         "value": "424242"},
-                        {"name": "source",
-                         "value": "1161"}
+                    "lines": [
+                        {
+                            "commercial_mode": {"id": "Metro", "name": "Metro"},
+                            "id": "M1",
+                            "name": "Metro 1",
+                            "code": "1",
+                            "network": {"id": "TGN", "name": "The Great Network"},
+                            "physical_modes": [{"id": "Metro", "name": "Metro"}],
+                            "text_color": "FFFFFF",
+                            "color": "7D36F5",
+                        },
+                        {
+                            "commercial_mode": {"id": "Bus", "name": "Bus"},
+                            "id": "B5",
+                            "name": "Bus 5",
+                            "code": "5",
+                            "network": {"id": "TGN", "name": "The Great Network"},
+                            "physical_modes": [{"id": "Bus", "name": "Bus"}],
+                            "color": "7D36F5",
+                            "text_color": "FFFFFF",
+                        },
+                        {
+                            "commercial_mode": {"id": "Bus", "name": "Bus"},
+                            "id": "B42",
+                            "name": "Bus 42",
+                            "network": {"id": "TGN", "name": "The Great Network"},
+                            "physical_modes": [{"id": "Bus", "name": "Bus"}],
+                        },
                     ],
+                    "codes": [{"name": "navitia1", "value": "424242"}, {"name": "source", "value": "1161"}],
                     "timezone": "Europe/Paris",
                     "administrative_regions": [
                         {
@@ -283,10 +372,7 @@ BRAGI_MOCK_STOP_AREA_WITH_MORE_ATTRIBUTS = {
                             "name": "Bobtown",
                             "zip_codes": ["02000"],
                             "weight": 1,
-                            "coord": {
-                                "lat": 48.8396154,
-                                "lon": 2.3957517
-                            }
+                            "coord": {"lat": 48.8396154, "lon": 2.3957517},
                         }
                     ],
                     "feed_publishers": [
@@ -294,12 +380,13 @@ BRAGI_MOCK_STOP_AREA_WITH_MORE_ATTRIBUTS = {
                             "id": "bob_publisher",
                             "license": "OBobDL",
                             "name": "Bobenstreetmap",
-                            "url": "https://www.Bobenstreetmap.org/copyright"
+                            "url": "https://www.Bobenstreetmap.org/copyright",
                         }
                     ],
-                    }
+                }
             },
-            "type": "Feature"
+            "type": "Feature",
+            "distance": 400,
         }
     ]
 }
@@ -308,11 +395,8 @@ BRAGI_MOCK_STOP_AREA_WITH_BASIC_ATTRIBUTS = {
     "features": [
         {
             "geometry": {
-                "coordinates": [
-                    0.0000898312,#has to match with kraken mock
-                    0.0000898312
-                ],
-                "type": "Point"
+                "coordinates": [0.0000898312, 0.0000898312],  # has to match with kraken mock
+                "type": "Point",
             },
             "properties": {
                 "geocoding": {
@@ -320,12 +404,7 @@ BRAGI_MOCK_STOP_AREA_WITH_BASIC_ATTRIBUTS = {
                     "id": "bobette",
                     "label": "bobette's label",
                     "name": "bobette",
-                    "poi_types": [
-                        {
-                            "id": "poi_type:amenity:bicycle_rental",
-                            "name": "Station VLS"
-                        }
-                    ],
+                    "poi_types": [{"id": "poi_type:amenity:bicycle_rental", "name": "Station VLS"}],
                     "postcode": "02100",
                     "type": "public_transport:stop_area",
                     "citycode": "02000",
@@ -338,15 +417,12 @@ BRAGI_MOCK_STOP_AREA_WITH_BASIC_ATTRIBUTS = {
                             "name": "Bobtown",
                             "zip_codes": ["02000"],
                             "weight": 1,
-                            "coord": {
-                                "lat": 48.8396154,
-                                "lon": 2.3957517
-                            }
+                            "coord": {"lat": 48.8396154, "lon": 2.3957517},
                         }
                     ],
-                    }
+                }
             },
-            "type": "Feature"
+            "type": "Feature",
         }
     ]
 }
@@ -354,32 +430,21 @@ BRAGI_MOCK_STOP_AREA_WITH_BASIC_ATTRIBUTS = {
 BRAGI_MOCK_BOBETTE = {
     "features": [
         {
-            "geometry": {
-                "coordinates": [
-                    0.0000898312,
-                    0.0000898312
-                ],
-                "type": "Point"
-            },
+            "geometry": {"coordinates": [0.0000898312, 0.0000898312], "type": "Point"},
             "properties": {
                 "geocoding": {
                     "city": "Bobtown",
                     "id": "bobette",
                     "label": "bobette's label",
                     "name": "bobette",
-                    "poi_types": [
-                        {
-                            "id": "poi_type:amenity:bicycle_rental",
-                            "name": "Station VLS"
-                        }
-                    ],
+                    "poi_types": [{"id": "poi_type:amenity:bicycle_rental", "name": "Station VLS"}],
                     "postcode": "02100",
                     "type": "poi",
                     "citycode": "02000",
                     "properties": [
                         {"key": "amenity", "value": "bicycle_rental"},
                         {"key": "capacity", "value": "20"},
-                        {"key": "ref", "value": "12"}
+                        {"key": "ref", "value": "12"},
                     ],
                     "address": {
                         "type": "street",
@@ -398,13 +463,10 @@ BRAGI_MOCK_BOBETTE = {
                                 "name": "Bobtown",
                                 "zip_codes": ["02000"],
                                 "weight": 1,
-                                "coord": {
-                                    "lat": 48.8396154,
-                                    "lon": 2.3957517
-                                }
+                                "coord": {"lat": 48.8396154, "lon": 2.3957517},
                             }
                         ],
-                        "weight": 0.00847457627118644
+                        "weight": 0.00847457627118644,
                     },
                     "administrative_regions": [
                         {
@@ -415,28 +477,21 @@ BRAGI_MOCK_BOBETTE = {
                             "name": "Bobtown",
                             "zip_codes": ["02000"],
                             "weight": 1,
-                            "coord": {
-                                "lat": 48.8396154,
-                                "lon": 2.3957517
-                            }
+                            "coord": {"lat": 48.8396154, "lon": 2.3957517},
                         }
                     ],
                 }
             },
-            "type": "Feature"
+            "type": "Feature",
         }
     ]
 }
-#Original coordinates are used to calculate id. We need different lat and lon for test
+# Original coordinates are used to calculate id. We need different lat and lon for test
 BRAGI_MOCK_BOBETTE_DEPTH_ZERO = deepcopy(BRAGI_MOCK_BOBETTE)
-BRAGI_MOCK_BOBETTE_DEPTH_ZERO["features"][0]["geometry"] = \
-    {
-        "coordinates": [
-            2.3957517,
-            48.8396154
-        ],
-        "type": "Point"
-    }
+BRAGI_MOCK_BOBETTE_DEPTH_ZERO["features"][0]["geometry"] = {
+    "coordinates": [2.3957517, 48.8396154],
+    "type": "Point",
+}
 BRAGI_MOCK_BOBETTE_DEPTH_ONE = deepcopy(BRAGI_MOCK_BOBETTE_DEPTH_ZERO)
 BRAGI_MOCK_BOBETTE_DEPTH_TWO = deepcopy(BRAGI_MOCK_BOBETTE_DEPTH_ZERO)
 BRAGI_MOCK_BOBETTE_DEPTH_THREE = deepcopy(BRAGI_MOCK_BOBETTE_DEPTH_ZERO)
@@ -444,18 +499,12 @@ BRAGI_MOCK_BOBETTE_DEPTH_THREE = deepcopy(BRAGI_MOCK_BOBETTE_DEPTH_ZERO)
 BOB_STREET = {
     "features": [
         {
-            "geometry": {
-                "coordinates": [
-                    0.00188646,
-                    0.00071865
-                ],
-                "type": "Point"
-            },
+            "geometry": {"coordinates": [0.00188646, 0.00071865], "type": "Point"},
             "properties": {
                 "geocoding": {
                     "city": "Bobtown",
                     "housenumber": "20",
-                    "id": "addr:" + check_utils.r_coord, # the adresse is just above 'R'
+                    "id": "addr:" + check_utils.r_coord,  # the adresse is just above 'R'
                     "label": "20 Rue Bob (Bobtown)",
                     "name": "Rue Bob",
                     "postcode": "02100",
@@ -471,35 +520,24 @@ BOB_STREET = {
                             "name": "Bobtown",
                             "zip_codes": ["02000"],
                             "weight": 1,
-                            "coord": {
-                                "lat": 48.8396154,
-                                "lon": 2.3957517
-                            }
+                            "coord": {"lat": 48.8396154, "lon": 2.3957517},
                         }
                     ],
                 }
             },
-            "type": "Feature"
+            "type": "Feature",
         }
     ]
 }
 
 BRAGI_MOCK_ADMIN = {
     "type": "FeatureCollection",
-    "geocoding": {
-        "version": "0.1.0",
-        "query": ""
-    },
+    "geocoding": {"version": "0.1.0", "query": ""},
     "features": [
         {
             "type": "Feature",
-            "geometry": {
-                "coordinates": [
-                    5.0414701,
-                    47.3215806
-                ],
-                "type": "Point"
-            },
+            "distance": 400,
+            "geometry": {"coordinates": [5.0414701, 47.3215806], "type": "Point"},
             "properties": {
                 "geocoding": {
                     "id": "admin:fr:21231",
@@ -510,29 +548,20 @@ BRAGI_MOCK_ADMIN = {
                     "city": None,
                     "citycode": "21231",
                     "level": 8,
-                    "administrative_regions": []
+                    "administrative_regions": [],
                 }
-            }
+            },
         }
-    ]
+    ],
 }
 
 BRAGI_MOCK_ADMINISTRATIVE_REGION = {
     "type": "FeatureCollection",
-    "geocoding": {
-        "version": "0.1.0",
-        "query": ""
-    },
+    "geocoding": {"version": "0.1.0", "query": ""},
     "features": [
         {
             "type": "Feature",
-            "geometry": {
-                "coordinates": [
-                    2.4518371,
-                    48.7830727
-                ],
-                "type": "Point"
-            },
+            "geometry": {"coordinates": [2.4518371, 48.7830727], "type": "Point"},
             "properties": {
                 "geocoding": {
                     "id": "admin:fr:941",
@@ -543,29 +572,20 @@ BRAGI_MOCK_ADMINISTRATIVE_REGION = {
                     "city": None,
                     "citycode": None,
                     "level": 7,
-                    "administrative_regions": []
+                    "administrative_regions": [],
                 }
-            }
+            },
         }
-    ]
+    ],
 }
 
 BRAGI_MOCK_ADMINISTRATIVE_REGION_WITH_WRONG_TYPE = {
     "type": "FeatureCollection",
-    "geocoding": {
-        "version": "0.1.0",
-        "query": ""
-    },
+    "geocoding": {"version": "0.1.0", "query": ""},
     "features": [
         {
             "type": "Feature",
-            "geometry": {
-                "coordinates": [
-                    2.4518371,
-                    48.7830727
-                ],
-                "type": "Point"
-            },
+            "geometry": {"coordinates": [2.4518371, 48.7830727], "type": "Point"},
             "properties": {
                 "geocoding": {
                     "id": "myId",
@@ -576,29 +596,20 @@ BRAGI_MOCK_ADMINISTRATIVE_REGION_WITH_WRONG_TYPE = {
                     "city": None,
                     "citycode": None,
                     "level": 7,
-                    "administrative_regions": []
+                    "administrative_regions": [],
                 }
-            }
+            },
         }
-    ]
+    ],
 }
 
 BRAGI_MOCK_RESPONSE_STOP_AREA_WITH_COMMENTS = {
     "type": "FeatureCollection",
-    "geocoding": {
-        "version": "0.1.0",
-        "query": ""
-    },
+    "geocoding": {"version": "0.1.0", "query": ""},
     "features": [
         {
             "type": "Feature",
-            "geometry": {
-                "coordinates": [
-                    3.282103,
-                    49.847586
-                ],
-                "type": "Point"
-            },
+            "geometry": {"coordinates": [3.282103, 49.847586], "type": "Point"},
             "properties": {
                 "geocoding": {
                     "city": "Bobtown",
@@ -609,67 +620,32 @@ BRAGI_MOCK_RESPONSE_STOP_AREA_WITH_COMMENTS = {
                     "type": "public_transport:stop_area",
                     "citycode": "02000",
                     "administrative_regions": [],
-                    "commercial_modes": [
-                        {
-                            "id": "commercial_mode:Bus",
-                            "name": "Bus"
-                        },
-                    ],
-                    "physical_modes": [
-                        {
-                            "id": "commercial_mode:Bus",
-                            "name": "Bus"
-                        },
-                    ],
-                    "comments": [
-                        {
-                            "name": "comment1",
-                        },
-                        {
-                            "name": "comment2",
-                        }
-                    ],
+                    "commercial_modes": [{"id": "commercial_mode:Bus", "name": "Bus"}],
+                    "physical_modes": [{"id": "commercial_mode:Bus", "name": "Bus"}],
+                    "comments": [{"name": "comment1"}, {"name": "comment2"}],
                     "timezone": "Europe/Paris",
-                    "codes": [
-                        {
-                            "name": "code_name1",
-                            "value": "1"
-                        },
-                        {
-                            "name": "coce_name2",
-                            "value": "2"
-                        }
-                    ],
+                    "codes": [{"name": "code_name1", "value": "1"}, {"name": "coce_name2", "value": "2"}],
                     "feed_publishers": [
                         {
                             "id": "feed_p_id",
                             "license": "feed_p_license",
                             "name": "feed_p_name",
-                            "url": "feed_p_url"
+                            "url": "feed_p_url",
                         }
-                    ]
+                    ],
                 }
             },
         }
-    ]
+    ],
 }
 
 BRAGI_MOCK_RESPONSE_STOP_AREA_WITHOUT_COMMENTS = {
     "type": "FeatureCollection",
-    "geocoding": {
-        "version": "0.1.0",
-        "query": ""
-    },
+    "geocoding": {"version": "0.1.0", "query": ""},
     "features": [
         {
             "type": "Feature",
-            "geometry": {
-                "coordinates": [
-                    3.282103,
-                    49.847586
-                ],
-                "type": "Point"
-            },
+            "geometry": {"coordinates": [3.282103, 49.847586], "type": "Point"},
             "properties": {
                 "geocoding": {
                     "city": "Bobtown",
@@ -680,84 +656,76 @@ BRAGI_MOCK_RESPONSE_STOP_AREA_WITHOUT_COMMENTS = {
                     "type": "public_transport:stop_area",
                     "citycode": "02000",
                     "administrative_regions": [],
-                    "commercial_modes": [
-                        {
-                            "id": "commercial_mode:Bus",
-                            "name": "Bus"
-                        },
-                    ],
-                    "physical_modes": [
-                        {
-                            "id": "commercial_mode:Bus",
-                            "name": "Bus"
-                        },
-                    ],
+                    "commercial_modes": [{"id": "commercial_mode:Bus", "name": "Bus"}],
+                    "physical_modes": [{"id": "commercial_mode:Bus", "name": "Bus"}],
                     "timezone": "Europe/Paris",
-                    "codes": [
-                        {
-                            "name": "code_name1",
-                            "value": "1"
-                        },
-                        {
-                            "name": "coce_name2",
-                            "value": "2"
-                        }
-                    ],
+                    "codes": [{"name": "code_name1", "value": "1"}, {"name": "coce_name2", "value": "2"}],
                     "feed_publishers": [
                         {
                             "id": "feed_p_id",
                             "license": "feed_p_license",
                             "name": "feed_p_name",
-                            "url": "feed_p_url"
+                            "url": "feed_p_url",
                         }
-                    ]
+                    ],
                 }
             },
         }
-    ]
+    ],
 }
 
+
+@contextmanager
 def mock_bragi_autocomplete_call(bragi_response, limite=10, http_response_code=200):
     url = 'https://host_of_bragi/autocomplete'
-    params = {
-        'q': u'bob',
-        'type[]': [u'public_transport:stop_area', u'street', u'house', u'poi', u'city'],
-        'limit': limite,
-        'pt_dataset': 'main_routing_test'
-    }
+    params = [
+        ('q', u'bob'),
+        ('type[]', u'public_transport:stop_area'),
+        ('type[]', u'street'),
+        ('type[]', u'house'),
+        ('type[]', u'poi'),
+        ('type[]', u'city'),
+        ('limit', limite),
+        ('pt_dataset[]', 'main_routing_test'),
+        ('timeout', 2000),
+    ]
+    params.sort()
 
     url += "?{}".format(urlencode(params, doseq=True))
-    mock_requests = MockRequests({
-        url: (bragi_response, http_response_code)
-    })
 
-    return mock_requests
+    with requests_mock.Mocker() as m:
+        m.get(url, json=bragi_response)
+        yield m
+
 
 @dataset({'main_routing_test': MOCKED_INSTANCE_CONF}, global_config={'activate_bragi': True})
 class TestBragiAutocomplete(AbstractTestFixture):
-
     def test_autocomplete_call(self):
-        mock_requests = mock_bragi_autocomplete_call(BRAGI_MOCK_RESPONSE)
-        with mock.patch('requests.get', mock_requests.get):
-            response = self.query_region("places?q=bob&pt_dataset=main_routing_test&type[]=stop_area"
-                                         "&type[]=address&type[]=poi&type[]=administrative_region")
+        with mock_bragi_autocomplete_call(BRAGI_MOCK_RESPONSE):
+            response = self.query_region(
+                "places?q=bob&pt_dataset[]=main_routing_test&type[]=stop_area"
+                "&type[]=address&type[]=poi&type[]=administrative_region"
+            )
 
             is_valid_global_autocomplete(response, depth=1)
             r = response.get('places')
             assert len(r) == 1
+            assert r[0]['id'] == '3.282103;49.847586'
             assert r[0]['name'] == '20 Rue Bob (Bobtown)'
             assert r[0]['embedded_type'] == 'address'
             assert r[0]['address']['name'] == 'Rue Bob'
             assert r[0]['address']['label'] == '20 Rue Bob (Bobtown)'
+            assert r[0]['distance'] == '400'
             fbs = response['feed_publishers']
             assert {fb['id'] for fb in fbs} >= {u'osm', u'bano'}
             assert len(r[0]['address'].get('administrative_regions')) == 1
 
     def test_autocomplete_call_depth_zero(self):
-        mock_requests = mock_bragi_autocomplete_call(deepcopy(BRAGI_MOCK_RESPONSE))
-        with mock.patch('requests.get', mock_requests.get):
-            response = self.query_region("places?q=bob&pt_dataset=main_routing_test&type[]=stop_area"
-                                         "&type[]=address&type[]=poi&type[]=administrative_region&depth=0")
+        with mock_bragi_autocomplete_call(deepcopy(BRAGI_MOCK_RESPONSE)):
+            response = self.query_region(
+                "places?q=bob&pt_dataset[]=main_routing_test&timeout=2000&type[]=stop_area"
+                "&type[]=address&type[]=poi&type[]=administrative_region&depth=0"
+            )
 
             is_valid_global_autocomplete(response, depth=0)
             r = response.get('places')
@@ -775,23 +743,24 @@ class TestBragiAutocomplete(AbstractTestFixture):
         test that the from param of the autocomplete is correctly given to bragi
         :return:
         """
-        def http_get(url, *args, **kwargs):
-            params = kwargs.pop('params')
-            assert params
-            assert params.get('lon') == '3.25'
-            assert params.get('lat') == '49.84'
-            return MockResponse({}, 200, '')
-        with mock.patch('requests.get', http_get) as mock_method:
+        with requests_mock.Mocker() as m:
+            m.get('https://host_of_bragi/autocomplete', json={})
             self.query_region('places?q=bob&from=3.25;49.84')
+            assert m.called
+            params = m.request_history[0].qs
+            assert params
+            assert params.get('lon') == ['3.25']
+            assert params.get('lat') == ['49.84']
+            assert params.get('timeout') == ['2000']
 
     def test_autocomplete_call_override(self):
         """"
         test that the _autocomplete param switch the right autocomplete service
         """
-        mock_requests = mock_bragi_autocomplete_call(BRAGI_MOCK_RESPONSE)
-        with mock.patch('requests.get', mock_requests.get):
-            response = self.query_region("places?q=bob&type[]=stop_area&type[]=address&type[]=poi"
-                                         "&type[]=administrative_region")
+        with mock_bragi_autocomplete_call(BRAGI_MOCK_RESPONSE):
+            response = self.query_region(
+                "places?q=bob&type[]=stop_area&type[]=address&type[]=poi&type[]=administrative_region"
+            )
 
             is_valid_global_autocomplete(response, depth=1)
             r = response.get('places')
@@ -812,38 +781,37 @@ class TestBragiAutocomplete(AbstractTestFixture):
         test that stop_area, poi, address and city are the default types passed to bragi
         :return:
         """
-        def http_get(url, *args, **kwargs):
-            params = kwargs.pop('params')
-            assert params
-            assert params.get('type[]') == ['public_transport:stop_area', 'street', 'house', 'poi', 'city']
-            return MockResponse({}, 200, '')
-        with mock.patch('requests.get', http_get) as mock_method:
+        with requests_mock.Mocker() as m:
+            m.get('https://host_of_bragi/autocomplete', json={})
             self.query_region('places?q=bob')
+            assert m.called
+            params = m.request_history[0].qs
+            assert params
+            assert 'type[]' in params
+            assert set(params['type[]']) == set(['public_transport:stop_area', 'street', 'house', 'poi', 'city'])
 
     def test_autocomplete_call_with_param_type_administrative_region(self):
         """
         test that administrative_region is converted to city
         :return:
         """
-        def http_get(url, *args, **kwargs):
-            params = kwargs.pop('params')
-            assert params
-            assert params.get('type[]') == ['city', 'street', 'house']
-
-            return MockResponse({}, 200, '')
-        with mock.patch('requests.get', http_get) as mock_method:
+        with requests_mock.Mocker() as m:
+            m.get('https://host_of_bragi/autocomplete', json={})
             self.query_region('places?q=bob&type[]=administrative_region&type[]=address')
+            assert m.called
+            params = m.request_history[0].qs
+            assert params
+            assert 'type[]' in params
+            assert set(params['type[]']) == set(['city', 'street', 'house'])
 
     def test_autocomplete_call_with_param_type_not_acceptable(self):
         """
         test not acceptable type
         :return:
         """
-        def http_get(url, *args, **kwargs):
-            return MockResponse({}, 422, '')
-
         with raises(Exception):
-            with mock.patch('requests.get', http_get) as mock_method:
+            with requests_mock.Mocker() as m:
+                m.get('https://host_of_bragi/autocomplete', status_code=422)
                 self.query_region('places?q=bob&type[]=bobette')
 
     def test_autocomplete_call_with_param_type_stop_point(self):
@@ -851,26 +819,24 @@ class TestBragiAutocomplete(AbstractTestFixture):
         test that stop_point is not passed to bragi
         :return:
         """
-        def http_get(url, *args, **kwargs):
-            params = kwargs.pop('params')
-            assert params
-            assert params.get('type[]') == ['street', 'house']
-
-            return MockResponse({}, 200, '')
-        with mock.patch('requests.get', http_get) as mock_method:
+        with requests_mock.Mocker() as m:
+            m.get('https://host_of_bragi/autocomplete', json={})
             self.query_region('places?q=bob&type[]=stop_point&type[]=address')
+            assert m.called
+            params = m.request_history[0].qs
+            assert params
+            assert 'type[]' in params
+            assert set(params['type[]']) == set(['street', 'house'])
 
     def test_features_call(self):
         url = 'https://host_of_bragi'
-        params = {'pt_dataset': 'main_routing_test'}
+        params = {'timeout': 200, 'pt_dataset[]': 'main_routing_test'}
 
         url += "/features/1234?{}".format(urlencode(params, doseq=True))
-
-        mock_requests = MockRequests({
-            url: (BRAGI_MOCK_RESPONSE, 200)
-        })
-        with mock.patch('requests.get', mock_requests.get):
-            response = self.query_region("places/1234?&pt_dataset=main_routing_test")
+        with requests_mock.Mocker() as m:
+            m.get(url, json=BRAGI_MOCK_RESPONSE)
+            response = self.query_region("places/1234?&pt_dataset[]=main_routing_test")
+            assert m.called
 
             is_valid_global_autocomplete(response, depth=1)
             r = response.get('places')
@@ -882,103 +848,111 @@ class TestBragiAutocomplete(AbstractTestFixture):
 
     def test_features_unknown_uri(self):
         url = 'https://host_of_bragi'
-        params = {'pt_dataset': 'main_routing_test'}
+        params = {'timeout': 200, 'pt_dataset[]': 'main_routing_test'}
 
         url += "/features/AAA?{}".format(urlencode(params, doseq=True))
-        mock_requests = MockRequests({
-        url:
-            (
-                {
-                    'short": "query error',
-                    'long": "invalid query EsError("Unable to find object")'
-                },
-                404
-            )
-        })
-
-        with mock.patch('requests.get', mock_requests.get):
-            response = self.query_region("places/AAA?&pt_dataset=main_routing_test", check=False)
+        response = {'short': 'query error', 'long': 'invalid query EsError("Unable to find object")'}
+        with requests_mock.Mocker() as m:
+            m.get(url, json=response, status_code=404)
+            response = self.query_region("places/AAA?&pt_dataset[]=main_routing_test", check=False)
+            assert m.called
             assert response[1] == 404
             assert response[0]["error"]["id"] == 'unknown_object'
             assert response[0]["error"]["message"] == "The object AAA doesn't exist"
 
     def test_poi_without_address(self):
         url = 'https://host_of_bragi'
-        params = {'pt_dataset': 'main_routing_test'}
+        params = {'pt_dataset[]': 'main_routing_test', 'timeout': 200}
 
         url += "/features/1234?{}".format(urlencode(params, doseq=True))
 
-        mock_requests = MockRequests({
-            url: (BRAGI_MOCK_POI_WITHOUT_ADDRESS, 200)
-        })
-        with mock.patch('requests.get', mock_requests.get):
-            response = self.query_region("places/1234?&pt_dataset=main_routing_test")
+        with requests_mock.Mocker() as m:
+            m.get(url, json=BRAGI_MOCK_POI_WITHOUT_ADDRESS)
+            response = self.query_region("places/1234?&pt_dataset[]=main_routing_test")
+            assert m.called
 
             r = response.get('places')
             assert len(r) == 1
+            assert r[0]['id'] == 'bobette'
             assert r[0]['embedded_type'] == 'poi'
             assert r[0]['poi']['name'] == 'bobette'
             assert r[0]['poi']['label'] == "bobette's label"
+            assert r[0]['distance'] == '400'
             assert not r[0]['poi'].get('address')
 
     def test_stop_area_with_modes(self):
         url = 'https://host_of_bragi'
-        params = {'pt_dataset': 'main_routing_test'}
+        params = {'pt_dataset[]': 'main_routing_test', 'timeout': 200}
 
         url += "/features/1234?{}".format(urlencode(params, doseq=True))
 
-        mock_requests = MockRequests({
-            url: (BRAGI_MOCK_STOP_AREA_WITH_MORE_ATTRIBUTS, 200)
-        })
-        with mock.patch('requests.get', mock_requests.get):
-            response = self.query_region("places/1234?&pt_dataset=main_routing_test")
+        with requests_mock.Mocker() as m:
+            m.get(url, json=BRAGI_MOCK_STOP_AREA_WITH_MORE_ATTRIBUTS)
+            response = self.query_region("places/1234?&pt_dataset[]=main_routing_test")
+            assert m.called
 
             assert response.get('feed_publishers')
-            if os.getenv('JORMUNGANDR_USE_SERPY'):
-                assert len(response.get('feed_publishers')) == 3
-            else:
-                assert len(response.get('feed_publishers')) == 2
+            assert len(response.get('feed_publishers')) == 3
 
             r = response.get('places')
             assert len(r) == 1
+            sa = r[0]['stop_area']
             assert r[0]['embedded_type'] == 'stop_area'
-            assert r[0]['stop_area']['name'] == 'bobette'
-            assert len(r[0]['stop_area'].get('commercial_modes')) == 2
-            assert r[0]['stop_area'].get('commercial_modes')[0].get('id') == 'cm_id:Bus'
-            assert r[0]['stop_area'].get('commercial_modes')[0].get('name') == 'cm_name:Bus'
-            assert r[0]['stop_area'].get('commercial_modes')[1].get('id') == 'cm_id:Car'
-            assert r[0]['stop_area'].get('commercial_modes')[1].get('name') == 'cm_name:Car'
+            assert sa['name'] == 'bobette'
+            assert len(sa.get('commercial_modes')) == 2
+            assert sa.get('commercial_modes')[0].get('id') == 'cm_id:Bus'
+            assert sa.get('commercial_modes')[0].get('name') == 'cm_name:Bus'
+            assert sa.get('commercial_modes')[1].get('id') == 'cm_id:Car'
+            assert sa.get('commercial_modes')[1].get('name') == 'cm_name:Car'
 
-            assert len(r[0]['stop_area'].get('physical_modes')) == 2
-            assert r[0]['stop_area'].get('physical_modes')[0].get('id') == 'pm_id:Bus'
-            assert r[0]['stop_area'].get('physical_modes')[0].get('name') == 'pm_name:Bus'
-            assert r[0]['stop_area'].get('physical_modes')[1].get('id') == 'pm_id:Car'
-            assert r[0]['stop_area'].get('physical_modes')[1].get('name') == 'pm_name:Car'
+            assert len(sa.get('physical_modes')) == 2
+            assert sa.get('physical_modes')[0].get('id') == 'pm_id:Bus'
+            assert sa.get('physical_modes')[0].get('name') == 'pm_name:Bus'
+            assert sa.get('physical_modes')[1].get('id') == 'pm_id:Car'
+            assert sa.get('physical_modes')[1].get('name') == 'pm_name:Car'
 
-            assert len(r[0]['stop_area'].get('codes')) == 2
-            assert r[0]['stop_area'].get('codes')[0].get('type') == 'external_code'
-            assert r[0]['stop_area'].get('codes')[0].get('value') == '424242'
-            assert r[0]['stop_area'].get('codes')[1].get('type') == 'source'
-            assert r[0]['stop_area'].get('codes')[1].get('value') == '1161'
+            assert len(sa.get('lines')) == 3
+            assert sa.get('lines')[0].get('id') == 'M1'
+            assert sa.get('lines')[0].get('name') == 'Metro 1'
+            assert sa.get('lines')[0].get('code') == '1'
+            assert sa.get('lines')[0].get('commercial_mode') == {'id': 'Metro', 'name': 'Metro'}
+            assert sa.get('lines')[0].get('network') == {'id': 'TGN', 'name': 'The Great Network'}
+            assert sa.get('lines')[0].get('physical_modes') == [{'id': 'Metro', 'name': 'Metro'}]
+            assert sa.get('lines')[0].get('text_color') == "FFFFFF"
+            assert sa.get('lines')[0].get('color') == "7D36F5"
 
-            assert r[0]['stop_area'].get('properties').get('name') == 'railway station'
-            assert r[0]['stop_area'].get('properties').get('code') == 'station:01'
+            assert sa.get('lines')[1].get('id') == 'B5'
+            assert sa.get('lines')[1].get('name') == 'Bus 5'
+            assert sa.get('lines')[1].get('code') == '5'
+            assert sa.get('lines')[1].get('commercial_mode') == {'id': 'Bus', 'name': 'Bus'}
+            assert sa.get('lines')[1].get('network') == {'id': 'TGN', 'name': 'The Great Network'}
+            assert sa.get('lines')[1].get('physical_modes') == [{'id': 'Bus', 'name': 'Bus'}]
+            assert sa.get('lines')[1].get('text_color') == "FFFFFF"
+            assert sa.get('lines')[1].get('color') == "7D36F5"
 
-            assert r[0]['stop_area'].get('timezone') == 'Europe/Paris'
-            admins = r[0]['stop_area'].get('administrative_regions')
+            assert len(sa.get('codes')) == 2
+            assert sa.get('codes')[0].get('type') == 'external_code'
+            assert sa.get('codes')[0].get('value') == '424242'
+            assert sa.get('codes')[1].get('type') == 'source'
+            assert sa.get('codes')[1].get('value') == '1161'
+
+            assert sa.get('properties').get('name') == 'railway station'
+            assert sa.get('properties').get('code') == 'station:01'
+
+            assert sa.get('timezone') == 'Europe/Paris'
+            admins = sa.get('administrative_regions')
+            assert r[0]['distance'] == '400'
             assert len(admins) == 1
 
     def test_stop_area_with_modes_depth_zero(self):
-        mock_requests = mock_bragi_autocomplete_call(deepcopy(BRAGI_MOCK_STOP_AREA_WITH_MORE_ATTRIBUTS))
-        with mock.patch('requests.get', mock_requests.get):
-            response = self.query_region("places?q=bob&pt_dataset=main_routing_test&type[]=stop_area"
-                                         "&type[]=address&type[]=poi&type[]=administrative_region&depth=0")
+        with mock_bragi_autocomplete_call(deepcopy(BRAGI_MOCK_STOP_AREA_WITH_MORE_ATTRIBUTS)):
+            response = self.query_region(
+                "places?q=bob&pt_dataset[]=main_routing_test&type[]=stop_area"
+                "&type[]=address&type[]=poi&type[]=administrative_region&depth=0"
+            )
 
             assert response.get('feed_publishers')
-            if os.getenv('JORMUNGANDR_USE_SERPY'):
-                assert len(response.get('feed_publishers')) == 3
-            else:
-                assert len(response.get('feed_publishers')) == 2
+            assert len(response.get('feed_publishers')) == 3
 
             r = response.get('places')
             assert len(r) == 1
@@ -1011,15 +985,13 @@ class TestBragiAutocomplete(AbstractTestFixture):
 
     def test_stop_area_without_modes(self):
         url = 'https://host_of_bragi'
-        params = {'pt_dataset': 'main_routing_test'}
+        params = {'pt_dataset[]': 'main_routing_test', 'timeout': 200}
 
         url += "/features/1234?{}".format(urlencode(params, doseq=True))
 
-        mock_requests = MockRequests({
-            url: (BRAGI_MOCK_STOP_AREA_WITH_BASIC_ATTRIBUTS, 200)
-        })
-        with mock.patch('requests.get', mock_requests.get):
-            response = self.query_region("places/1234?&pt_dataset=main_routing_test")
+        with requests_mock.Mocker() as m:
+            m.get(url, json=BRAGI_MOCK_STOP_AREA_WITH_BASIC_ATTRIBUTS)
+            response = self.query_region("places/1234?&pt_dataset[]=main_routing_test")
 
             assert response.get('feed_publishers')
             assert len(response.get('feed_publishers')) == 2
@@ -1035,26 +1007,40 @@ class TestBragiAutocomplete(AbstractTestFixture):
             assert 'properties' not in r[0]['stop_area']
             # Attribute displayed but None
             assert not r[0]['stop_area'].get('timezone')
+            assert 'distance' not in r[0]
 
     def test_feature_unknown_type(self):
-        mock_requests = mock_bragi_autocomplete_call(BRAGI_MOCK_TYPE_UNKNOWN, limite=2)
-        with mock.patch('requests.get', mock_requests.get):
+        with mock_bragi_autocomplete_call(BRAGI_MOCK_TYPE_UNKNOWN, limite=2):
             response = self.query("v1/places?q=bob&count=2")
 
             is_valid_global_autocomplete(response, depth=1)
             r = response.get('places')
-            #check that we get only one response, the other one being filtered as type is unknown
+            # check that we get only one response, the other one being filtered as type is unknown
             assert len(r) == 1
             assert r[0]['name'] == 'Lille'
             assert r[0]['embedded_type'] == 'administrative_region'
-            assert r[0]['id']== 'admin:fr:59350'
+            assert r[0]['id'] == 'admin:fr:59350'
             assert r[0]['administrative_region']['label'] == 'Lille (59000-59800)'
 
+    def test_feature_zone(self):
+        with mock_bragi_autocomplete_call(BRAGI_MOCK_ZONE):
+            response = self.query("v1/places?q=bob")
+
+            is_valid_global_autocomplete(response, depth=1)
+            r = response.get('places')
+            # The suburb is currently ignored, only cities are returned
+            assert len(r) == 1
+            assert r[0]['name'] == 'Paris'
+            assert r[0]['embedded_type'] == 'administrative_region'
+            assert r[0]['id'] == 'admin:fr:75056'
+            assert r[0]['administrative_region']['label'] == 'Paris (75000-75116), Île-de-France, France'
+
     def test_autocomplete_call_with_depth_zero(self):
-        mock_requests = mock_bragi_autocomplete_call(BRAGI_MOCK_BOBETTE_DEPTH_ZERO)
-        with mock.patch('requests.get', mock_requests.get):
-            response = self.query_region("places?q=bob&pt_dataset=main_routing_test&type[]=stop_area"
-                                         "&type[]=address&type[]=poi&type[]=administrative_region&depth=0")
+        with mock_bragi_autocomplete_call(BRAGI_MOCK_BOBETTE_DEPTH_ZERO):
+            response = self.query_region(
+                "places?q=bob&pt_dataset[]=main_routing_test&type[]=stop_area"
+                "&type[]=address&type[]=poi&type[]=administrative_region&depth=0"
+            )
 
             r = response.get('places')
             assert len(r) == 1
@@ -1067,17 +1053,18 @@ class TestBragiAutocomplete(AbstractTestFixture):
             assert poi['properties']["amenity"] == "bicycle_rental"
             assert poi['properties']["capacity"] == "20"
             assert poi['properties']["ref"] == "12"
-            #Empty administrative_regions not displayed as in kraken
+            # Empty administrative_regions not displayed as in kraken
             assert not poi.get('administrative_regions')
             assert 'administrative_regions' not in poi
-            #Address absent as in kraken
+            # Address absent as in kraken
             assert 'address' not in poi
 
     def test_autocomplete_call_with_depth_one(self):
-        mock_requests = mock_bragi_autocomplete_call(BRAGI_MOCK_BOBETTE_DEPTH_ONE)
-        with mock.patch('requests.get', mock_requests.get):
-            response = self.query_region("places?q=bob&pt_dataset=main_routing_test&type[]=stop_area"
-                                         "&type[]=address&type[]=poi&type[]=administrative_region&depth=1")
+        with mock_bragi_autocomplete_call(BRAGI_MOCK_BOBETTE_DEPTH_ONE):
+            response = self.query_region(
+                "places?q=bob&pt_dataset[]=main_routing_test&type[]=stop_area"
+                "&type[]=address&type[]=poi&type[]=administrative_region&depth=1"
+            )
 
             r = response.get('places')
             assert len(r) == 1
@@ -1103,14 +1090,15 @@ class TestBragiAutocomplete(AbstractTestFixture):
             assert address['id'] == "2.3957517;48.8396154"
             assert address['name'] == "Speloncato-Monticello"
             assert address['house_number'] == 0
-            #Empty administrative_regions not displayed as in kraken
+            # Empty administrative_regions not displayed as in kraken
             assert not address.get('administrative_regions')
 
     def test_autocomplete_call_with_depth_two(self):
-        mock_requests = mock_bragi_autocomplete_call(BRAGI_MOCK_BOBETTE_DEPTH_TWO)
-        with mock.patch('requests.get', mock_requests.get):
-            response = self.query_region("places?q=bob&pt_dataset=main_routing_test&type[]=stop_area"
-                                         "&type[]=address&type[]=poi&type[]=administrative_region&depth=2")
+        with mock_bragi_autocomplete_call(BRAGI_MOCK_BOBETTE_DEPTH_TWO):
+            response = self.query_region(
+                "places?q=bob&pt_dataset[]=main_routing_test&type[]=stop_area"
+                "&type[]=address&type[]=poi&type[]=administrative_region&depth=2"
+            )
 
             r = response.get('places')
             assert len(r) == 1
@@ -1146,17 +1134,20 @@ class TestBragiAutocomplete(AbstractTestFixture):
             assert address_admins[0]['coord']['lat'] == "48.8396154"
             assert address_admins[0]['coord']['lon'] == "2.3957517"
 
-    #This test is to verify that query with depth = 2 and 3 gives the same result as in kraken
+    # This test is to verify that query with depth = 2 and 3 gives the same result as in kraken
     def test_autocomplete_call_with_depth_three(self):
-        mock_requests = mock_bragi_autocomplete_call(BRAGI_MOCK_BOBETTE_DEPTH_THREE)
-        with mock.patch('requests.get', mock_requests.get):
-            response = self.query_region("places?q=bob&pt_dataset=main_routing_test&type[]=stop_area"
-                                         "&type[]=address&type[]=poi&type[]=administrative_region&depth=3")
+        with mock_bragi_autocomplete_call(BRAGI_MOCK_BOBETTE_DEPTH_THREE):
+            response = self.query_region(
+                "places?q=bob&pt_dataset[]=main_routing_test&type[]=stop_area"
+                "&type[]=address&type[]=poi&type[]=administrative_region&depth=3"
+            )
 
             r = response.get('places')
             assert len(r) == 1
             assert r[0]['name'] == "bobette's label"
             assert r[0]['embedded_type'] == "poi"
+            assert 'distance' not in r[0]
+
             poi = r[0]['poi']
             assert poi['label'] == "bobette's label"
             assert poi['properties']["amenity"] == "bicycle_rental"
@@ -1188,10 +1179,11 @@ class TestBragiAutocomplete(AbstractTestFixture):
             assert address_admins[0]['coord']['lon'] == "2.3957517"
 
     def test_autocomplete_for_admin_depth_zero(self):
-        mock_requests = mock_bragi_autocomplete_call(BRAGI_MOCK_ADMIN)
-        with mock.patch('requests.get', mock_requests.get):
-            response = self.query_region("places?q=bob&pt_dataset=main_routing_test&type[]=stop_area"
-                                         "&type[]=address&type[]=poi&type[]=administrative_region&depth=0")
+        with mock_bragi_autocomplete_call(BRAGI_MOCK_ADMIN):
+            response = self.query_region(
+                "places?q=bob&pt_dataset[]=main_routing_test&type[]=stop_area"
+                "&type[]=address&type[]=poi&type[]=administrative_region&depth=0"
+            )
 
             is_valid_global_autocomplete(response, depth=0)
             r = response.get('places')
@@ -1199,6 +1191,7 @@ class TestBragiAutocomplete(AbstractTestFixture):
             assert r[0]['name'] == 'Dijon'
             assert r[0]['embedded_type'] == 'administrative_region'
             assert r[0]['id'] == 'admin:fr:21231'
+            assert r[0]['distance'] == '400'
             assert r[0]['administrative_region']['id'] == 'admin:fr:21231'
             assert r[0]['administrative_region']['insee'] == '21231'
             assert r[0]['administrative_region']['label'] == 'Dijon (21000)'
@@ -1206,8 +1199,7 @@ class TestBragiAutocomplete(AbstractTestFixture):
             assert 'administrative_regions' not in r[0]['administrative_region']
 
     def test_autocomplete_for_administrative_region(self):
-        mock_requests = mock_bragi_autocomplete_call(BRAGI_MOCK_ADMINISTRATIVE_REGION)
-        with mock.patch('requests.get', mock_requests.get):
+        with mock_bragi_autocomplete_call(BRAGI_MOCK_ADMINISTRATIVE_REGION):
             response = self.query_region("places?q=bob")
             r = response.get('places')
             assert len(r) == 1
@@ -1219,21 +1211,22 @@ class TestBragiAutocomplete(AbstractTestFixture):
             assert r[0]['administrative_region']['label'] == 'Créteil (94000)'
             assert r[0]['administrative_region']['id'] == 'admin:fr:941'
             assert r[0]['administrative_region']['zip_code'] == '94000'
+            assert 'distance' not in r[0]
 
     def test_autocomplete_for_administrative_region_with_wrong_type(self):
-        mock_requests = mock_bragi_autocomplete_call(BRAGI_MOCK_ADMINISTRATIVE_REGION_WITH_WRONG_TYPE)
-        with mock.patch('requests.get', mock_requests.get):
+        with mock_bragi_autocomplete_call(BRAGI_MOCK_ADMINISTRATIVE_REGION_WITH_WRONG_TYPE):
             response = self.query_region("places?q=bob")
             r = response.get('places')
             assert len(r) == 0
-            
+
     # Since administrative_regions of the admin is an empty list in the result bragi
     # there is no difference in the final result with depth from 0 to 3
     def test_autocomplete_for_admin_depth_two(self):
-        mock_requests = mock_bragi_autocomplete_call(deepcopy(BRAGI_MOCK_ADMIN))
-        with mock.patch('requests.get', mock_requests.get):
-            response = self.query_region("places?q=bob&pt_dataset=main_routing_test&type[]=stop_area"
-                                         "&type[]=address&type[]=poi&type[]=administrative_region&depth=2")
+        with mock_bragi_autocomplete_call(deepcopy(BRAGI_MOCK_ADMIN)):
+            response = self.query_region(
+                "places?q=bob&pt_dataset[]=main_routing_test&type[]=stop_area"
+                "&type[]=address&type[]=poi&type[]=administrative_region&depth=2"
+            )
 
             is_valid_global_autocomplete(response, depth=2)
             r = response.get('places')
@@ -1249,17 +1242,18 @@ class TestBragiAutocomplete(AbstractTestFixture):
             assert 'administrative_regions' not in r[0]['administrative_region']
 
     def test_autocomplete_call_with_comments_on_stop_area(self):
-        mock_requests = mock_bragi_autocomplete_call(BRAGI_MOCK_RESPONSE_STOP_AREA_WITH_COMMENTS)
-        with mock.patch('requests.get', mock_requests.get):
-            response = self.query_region("places?q=bob&pt_dataset=main_routing_test&type[]=stop_area"
-                                         "&type[]=address&type[]=poi&type[]=administrative_region")
+        with mock_bragi_autocomplete_call(BRAGI_MOCK_RESPONSE_STOP_AREA_WITH_COMMENTS):
+            response = self.query_region(
+                "places?q=bob&pt_dataset[]=main_routing_test&type[]=stop_area"
+                "&type[]=address&type[]=poi&type[]=administrative_region"
+            )
             is_valid_global_autocomplete(response, depth=1)
             r = response.get('places')
             assert len(r) == 1
             assert r[0]['name'] == 'stop 1'
             assert r[0]['embedded_type'] == 'stop_area'
             assert r[0]['id'] == 'stop_area_id'
-            assert r[0]['quality'] == 0 # field for kraken compatibility (default = 0)
+            assert r[0]['quality'] == 0  # field for kraken compatibility (default = 0)
             stop_area = r[0]['stop_area']
             # For retrocompatibility, when we have multi-comments, we keep 'comment' field with
             # the first comment element.
@@ -1268,124 +1262,144 @@ class TestBragiAutocomplete(AbstractTestFixture):
             assert {comment['value'] for comment in comments} >= {u'comment1', u'comment2'}
 
     def test_autocomplete_call_without_comments_on_stop_area(self):
-        mock_requests = mock_bragi_autocomplete_call(BRAGI_MOCK_RESPONSE_STOP_AREA_WITHOUT_COMMENTS)
-        with mock.patch('requests.get', mock_requests.get):
-            response = self.query_region("places?q=bob&pt_dataset=main_routing_test&type[]=stop_area"
-                                         "&type[]=address&type[]=poi&type[]=administrative_region")
+        with mock_bragi_autocomplete_call(BRAGI_MOCK_RESPONSE_STOP_AREA_WITHOUT_COMMENTS):
+            response = self.query_region(
+                "places?q=bob&pt_dataset[]=main_routing_test&type[]=stop_area"
+                "&type[]=address&type[]=poi&type[]=administrative_region"
+            )
             is_valid_global_autocomplete(response, depth=1)
             r = response.get('places')
             assert len(r) == 1
             assert r[0]['name'] == 'stop 1'
             assert r[0]['embedded_type'] == 'stop_area'
             assert r[0]['id'] == 'stop_area_id'
-            assert r[0]['quality'] == 0 # field for kraken compatibility (default = 0)
+            assert r[0]['quality'] == 0  # field for kraken compatibility (default = 0)
             stop_area = r[0]['stop_area']
             # When no comments exist in Bragi, the API mask the "comment" and "comments" field.
             assert not stop_area.get('comment')
             assert not stop_area.get('comments')
 
+    def test_place_uri_stop_point(self):
+        url = "https://host_of_bragi/features/stop_point:stopB?{}".format(
+            urlencode({'timeout': 200, 'pt_dataset[]': 'main_routing_test'}, doseq=True)
+        )
+        response = {'short': 'query error', 'long': 'invalid query EsError("Unable to find object")'}
+        with requests_mock.Mocker() as m:
+            m.get(url, json=response, status_code=404)
+            response = self.query_region("places/stop_point:stopB")
+
+            # bragi should have been called
+            assert m.called
+
+            # but since it has not found anything, kraken have been called, and he knows this stop_point
+            is_valid_global_autocomplete(response, depth=1)
+            r = response.get('places')
+            assert len(r) == 1
+            assert r[0]['embedded_type'] == 'stop_point'
+            assert r[0]['id'] == 'stop_point:stopB'
+
+    def test_place_uri_stop_point_global_endpoint(self):
+        url = "https://host_of_bragi/features/stop_point:stopB?{}".format(
+            urlencode({'timeout': 200, 'pt_dataset[]': 'main_routing_test'}, doseq=True)
+        )
+        response = {'short': 'query error', 'long': 'invalid query EsError("Unable to find object")'}
+        with requests_mock.Mocker() as m:
+            m.get(url, json=response, status_code=404)
+            response, status = self.query_no_assert("/v1/places/stop_point:stopB")
+
+            # bragi should have been called
+            assert m.called
+
+            # for the global /places endpoint, we do not fallback on kraken, even if a pt_dataset is given,
+            # so the object cannot be found
+            assert status == 404
+            assert response["error"]["id"] == 'unknown_object'
+            assert "The object stop_point:stopB doesn't exist" in response["error"]["message"]
+
 
 @dataset({"main_routing_test": {}}, global_config={'activate_bragi': True})
 class TestBragiShape(AbstractTestFixture):
-
     def test_places_for_user_with_shape(self):
         """
         Test that with a shape on user, it is correctly posted
         """
         with user_set(app, FakeUserBragi, "test_user_with_shape"):
-
-            mock_post = mock.MagicMock(return_value=MockResponse({}, 200, '{}'))
-
-            def http_get(url, *args, **kwargs):
-                assert False
-
-            with mock.patch('requests.get', http_get):
-                with mock.patch('requests.post', mock_post):
-
-                    self.query('v1/coverage/main_routing_test/places?q=toto&_autocomplete=bragi')
-                    assert mock_post.called
-
-                    mock_post.reset_mock()
-                    self.query('v1/places?q=toto')
-                    assert mock_post.called
+            with requests_mock.Mocker() as m:
+                m.post('https://host_of_bragi/autocomplete', json={})
+                self.query('v1/coverage/main_routing_test/places?q=toto&_autocomplete=bragi')
+                assert m.called
+                self.query('v1/places?q=toto')
+                assert m.call_count == 2
 
             # test that the shape is posted
-            def http_post(url, *args, **kwargs):
-                json = kwargs.pop('json')
+            def check_shape(m):
+                json = m.request_history[-1].json()
                 assert json['shape']['type'] == 'Feature'
                 assert json.get('shape').get('geometry')
-                return MockResponse({}, 200, '{}')
 
-            with mock.patch('requests.get', http_get):
-                with mock.patch('requests.post', http_post):
-                    self.query('v1/coverage/main_routing_test/places?q=toto&_autocomplete=bragi')
-                    self.query('v1/places?q=toto')
+            with requests_mock.Mocker() as m:
+                m.post('https://host_of_bragi/autocomplete', json={})
+                self.query('v1/coverage/main_routing_test/places?q=toto&_autocomplete=bragi')
+                assert m.called
+                check_shape(m)
+                self.query('v1/places?q=toto')
+                assert m.call_count == 2
+                check_shape(m)
 
     def test_places_for_user_without_shape(self):
         """
         Test that without shape for user, we use the get method
         """
         with user_set(app, FakeUserBragi, "test_user_no_shape"):
+            with requests_mock.Mocker() as m:
+                m.get('https://host_of_bragi/autocomplete', json={})
+                self.query('v1/coverage/main_routing_test/places?q=toto&_autocomplete=bragi')
+                assert m.called
 
-            mock_get = mock.MagicMock(return_value=MockResponse({}, 200, '{}'))
-
-            def http_post(self, url, *args, **kwargs):
-                assert False
-
-            with mock.patch('requests.get', mock_get):
-                with mock.patch('requests.post', http_post):
-
-                    self.query('v1/coverage/main_routing_test/places?q=toto&_autocomplete=bragi')
-                    assert mock_get.called
-
-                    mock_get.reset_mock()
-                    self.query('v1/places?q=toto')
-                    assert mock_get.called
+                self.query('v1/places?q=toto')
+                assert m.call_count == 2
 
     def test_places_for_user_with_coord(self):
         """
         Test that with a default_coord on user, it is correctly posted
         """
         with user_set(app, FakeUserBragi, "test_user_with_coord"):
-            def http_get(url, *args, **kwargs):
-                params = kwargs.pop('params')
-                assert params
-                assert params.get('lon') == '12'
-                assert params.get('lat') == '42'
-                return MockResponse({}, 200, '')
-
-            with mock.patch('requests.get', http_get):
+            with requests_mock.Mocker() as m:
+                m.get('https://host_of_bragi/autocomplete', json={})
                 self.query('v1/coverage/main_routing_test/places?q=toto&_autocomplete=bragi')
+                assert m.called
+                params = m.request_history[0].qs
+                assert params
+                assert params.get('lon') == ['12']
+                assert params.get('lat') == ['42']
 
     def test_places_for_user_with_coord_and_coord_overriden(self):
         """
         Test that with a default_coord on user, if the user gives a coord we use the given coord
         """
         with user_set(app, FakeUserBragi, "test_user_with_coord"):
-            def http_get(url, *args, **kwargs):
-                params = kwargs.pop('params')
-                assert params
-                assert params.get('lon') == '1'
-                assert params.get('lat') == '2'
-                return MockResponse({}, 200, '')
-
-            with mock.patch('requests.get', http_get):
+            with requests_mock.Mocker() as m:
+                m.get('https://host_of_bragi/autocomplete', json={})
                 self.query('v1/coverage/main_routing_test/places?q=toto&_autocomplete=bragi&from=1;2')
+                assert m.called
+                params = m.request_history[0].qs
+                assert params
+                assert params.get('lon') == ['1']
+                assert params.get('lat') == ['2']
 
     def test_places_for_user_with_coord_and_coord_overriden_to_null(self):
         """
         Test that with a default_coord on user, if the user gives an empty coord we do not pass a coord
         """
         with user_set(app, FakeUserBragi, "test_user_with_coord"):
-            def http_get(url, *args, **kwargs):
-                params = kwargs.pop('params')
-                assert params
-                assert not params.get('lon')
-                assert not params.get('lat')
-                return MockResponse({}, 200, '')
-
-            with mock.patch('requests.get', http_get):
+            with requests_mock.Mocker() as m:
+                m.get('https://host_of_bragi/autocomplete', json={})
                 self.query('v1/coverage/main_routing_test/places?q=toto&_autocomplete=bragi&from=')
+                assert m.called
+                params = m.request_history[0].qs
+                assert params
+                assert params.get('lon') is None
+                assert params.get('lat') is None
 
     def test_places_with_empty_coord(self):
         """
@@ -1397,12 +1411,13 @@ class TestBragiShape(AbstractTestFixture):
         assert "if 'from' is provided it cannot be null" in r.get('message')
 
     def test_global_place_uri(self):
-        mock_requests = MockRequests({
-            # there is no authentication so all the known pt_dataset are added as parameters
-            'https://host_of_bragi/features/bob?pt_dataset=main_routing_test': (BRAGI_MOCK_RESPONSE, 200)
-        })
-        with mock.patch('requests.get', mock_requests.get):
+        params = {'timeout': 200, 'pt_dataset[]': 'main_routing_test'}
+        url = 'https://host_of_bragi/features/bob?{}'.format(urlencode(params, doseq=True))
+
+        with requests_mock.Mocker() as m:
+            m.get(url, json=BRAGI_MOCK_RESPONSE)
             response = self.query("/v1/places/bob")
+            assert m.called
 
             is_valid_global_autocomplete(response, depth=1)
             r = response.get('places')
@@ -1414,20 +1429,17 @@ class TestBragiShape(AbstractTestFixture):
 
     def test_global_coords_uri(self):
         url = 'https://host_of_bragi'
-        params = {
-            'pt_dataset': 'main_routing_test',
-            'lon': 3.282103,
-            'lat': 49.84758
-        }
+        params = {'pt_dataset[]': 'main_routing_test', 'lon': 3.282103, 'lat': 49.84758, 'timeout': 200}
         url += "/reverse?{}".format(urlencode(params, doseq=True))
 
-        mock_requests = MockRequests({
-            url: (BRAGI_MOCK_RESPONSE, 200)
-        })
-
-        with mock.patch('requests.get', mock_requests.get):
-            response = self.query("/v1/coverage/{pt_dataset}/coords/{lon};{lat}?_autocomplete=bragi".format(
-                lon=params.get('lon'), lat=params.get('lat'), pt_dataset=params.get('pt_dataset')))
+        with requests_mock.Mocker() as m:
+            m.get(url, json=BRAGI_MOCK_RESPONSE)
+            response = self.query(
+                "/v1/coverage/{pt_dataset}/coords/{lon};{lat}?_autocomplete=bragi".format(
+                    lon=params.get('lon'), lat=params.get('lat'), pt_dataset=params.get('pt_dataset[]')
+                )
+            )
+            assert m.called
 
             address = response.get('address')
             assert address
@@ -1438,8 +1450,11 @@ class TestBragiShape(AbstractTestFixture):
 
 
 @dataset({'main_routing_test': MOCKED_INSTANCE_CONF}, global_config={'activate_bragi': True})
-class AbstractAutocompleteAndRouting():
+class AbstractAutocompleteAndRouting:
     def test_journey_with_external_uri_from_bragi(self):
+        self.abstract_journey_with_external_uri_from_bragi(BOB_STREET)
+
+    def abstract_journey_with_external_uri_from_bragi(self, bragi_bob_reverse_response):
         """
         This test aim to recreate a classic integration
 
@@ -1447,23 +1462,43 @@ class AbstractAutocompleteAndRouting():
         And then use the autocomplete's response to query for a journey
 
         For this test we have 2 item in our autocomplete:
-         - the poi 'bobette' 
+         - the poi 'bobette'
          - an adresse in bob's street that is not in the dataset
         """
-        args = {
-            u'pt_dataset': 'main_routing_test',
-            u'type[]': [u'public_transport:stop_area', u'street', u'house', u'poi', u'city'],
-            u'limit': 10
-        }
+        args = [
+            (u'pt_dataset[]', 'main_routing_test'),
+            (u'type[]', u'public_transport:stop_area'),
+            (u'type[]', u'street'),
+            (u'type[]', u'house'),
+            (u'type[]', u'poi'),
+            (u'type[]', u'city'),
+            (u'limit', 10),
+            ('timeout', 2000),
+        ]
+        args.sort()
         params = urlencode(args, doseq=True)
-        mock_requests = MockRequests({
-            'https://host_of_bragi/autocomplete?q=bobette&{p}'.format(p=params): (BRAGI_MOCK_BOBETTE, 200),
-            'https://host_of_bragi/features/bobette?pt_dataset=main_routing_test': (BRAGI_MOCK_BOBETTE, 200),
-            'https://host_of_bragi/autocomplete?q=20+rue+bob&{p}'.format(p=params): (BOB_STREET, 200),
-            'https://host_of_bragi/reverse?lat={lat}&lon={lon}&pt_dataset=main_routing_test'
-            .format(lon=check_utils.r_coord.split(';')[0], lat=check_utils.r_coord.split(';')[1])
-            : (BOB_STREET, 200)
-        })
+
+        features_url = 'https://host_of_bragi/features/bobette?{}'.format(
+            urlencode({'timeout': 200, 'pt_dataset[]': 'main_routing_test'}, doseq=True)
+        )
+        reverse_url = 'https://host_of_bragi/reverse?{}'.format(
+            urlencode(
+                {
+                    'lon': check_utils.r_coord.split(';')[0],
+                    'lat': check_utils.r_coord.split(';')[1],
+                    'timeout': 200,
+                    'pt_dataset[]': 'main_routing_test',
+                },
+                doseq=True,
+            )
+        )
+        bobette_args = deepcopy(args) + [('q', 'bobette')]
+        bobette_args.sort()
+        bobette_params = urlencode(bobette_args, doseq=True)
+
+        bob_args = deepcopy(args) + [('q', '20 rue bob')]
+        bob_args.sort()
+        bob_params = urlencode(bob_args, doseq=True)
 
         def get_autocomplete(query):
             autocomplete_response = self.query_region(query)
@@ -1471,11 +1506,19 @@ class AbstractAutocompleteAndRouting():
             assert len(r) == 1
             return r[0]['id']
 
-        with mock.patch('requests.get', mock_requests.get):
+        with requests_mock.Mocker() as m:
+            m.get('https://host_of_bragi/autocomplete?{p}'.format(p=bobette_params), json=BRAGI_MOCK_BOBETTE)
+            m.get('https://host_of_bragi/autocomplete?{p}'.format(p=bob_params), json=bragi_bob_reverse_response)
+            m.get(reverse_url, json=bragi_bob_reverse_response)
+            m.get(features_url, json=BRAGI_MOCK_BOBETTE)
             journeys_from = get_autocomplete('places?q=bobette')
             journeys_to = get_autocomplete('places?q=20 rue bob')
-            query = 'journeys?from={f}&to={to}&datetime={dt}'.format(f=journeys_from, to=journeys_to, dt="20120614T080000")
+            assert m.call_count == 2
+            query = 'journeys?from={f}&to={to}&datetime={dt}'.format(
+                f=journeys_from, to=journeys_to, dt="20120614T080000"
+            )
             journeys_response = self.query_region(query)
+            assert m.call_count == 4
 
             self.is_valid_journey_response(journeys_response, query)
 
@@ -1504,38 +1547,71 @@ class AbstractAutocompleteAndRouting():
 
     def test_global_coords_uri(self):
         url = 'https://host_of_bragi'
-        params = {
-            'pt_dataset': 'main_routing_test',
-            'lon': 3.282103,
-            'lat': 49.84758
-        }
+        params = {'pt_dataset[]': 'main_routing_test', 'lon': 3.282103, 'lat': 49.84758, 'timeout': 200}
 
         url += "/reverse?{}".format(urlencode(params, doseq=True))
 
-        mock_requests = MockRequests({
-            url: (BRAGI_MOCK_RESPONSE, 200)
-        })
-
-        with mock.patch('requests.get', mock_requests.get):
-            response = self.query("/v1/coverage/{pt_dataset}/coords/{lon};{lat}".
-                                  format(lon=params.get('lon'), lat=params.get('lat'),
-                                         pt_dataset=params.get('pt_dataset')))
+        with requests_mock.Mocker() as m:
+            m.get(url, json=BRAGI_MOCK_RESPONSE)
+            response = self.query(
+                "/v1/coverage/{pt_dataset}/coords/{lon};{lat}".format(
+                    lon=params.get('lon'), lat=params.get('lat'), pt_dataset=params.get('pt_dataset[]')
+                )
+            )
 
             address = response.get('address')
             assert address
             assert address['house_number'] == 20
             assert address['name'] == 'Rue Bob'
             assert address['label'] == '20 Rue Bob (Bobtown)'
+            assert address['coord'] == {'lat': '49.847586', 'lon': '3.282103'}
+            assert address['id'] == '3.282103;49.847586'
+            assert len(address['administrative_regions']) == 1
+
+    def test_journey_with_external_uri_from_bragi_new_bragi_coord_id_fmt(self):
+        """
+        Test that navitia's /journey still works if bragi returns addresses with a new id format (not 'addr:{lon};{lat}' anymore)
+        It should not be a problem since navitia is not meant to do some tricks to parse the id, but we never know
+        """
+        self.abstract_journey_with_external_uri_from_bragi(BOB_STREET)
+
+    def test_global_coords_uri_new_bragi_coord_id_fmt(self):
+        """
+        Test that navitia's /places still works if bragi returns addresses with a new id format (not 'addr:{lon};{lat}' anymore)
+        It should not be a problem since navitia is not meant to do some tricks to parse the id, but we never know
+        """
+        url = 'https://host_of_bragi'
+        params = {'pt_dataset[]': 'main_routing_test', 'lon': 3.282103, 'lat': 49.84758, 'timeout': 200}
+
+        url += "/reverse?{}".format(urlencode(params, doseq=True))
+
+        with requests_mock.Mocker() as m:
+            m.get(url, json=BRAGI_MOCK_REVERSE_RESPONSE_NEW_ID_FMT)
+            response = self.query(
+                "/v1/coverage/{pt_dataset}/coords/{lon};{lat}".format(
+                    lon=params.get('lon'), lat=params.get('lat'), pt_dataset=params.get('pt_dataset[]')
+                )
+            )
+
+            address = response.get('address')
+            assert address
+            assert address['house_number'] == 20
+            assert address['name'] == 'Rue Bob'
+            assert address['label'] == '20 Rue Bob (Bobtown)'
+            assert address['coord'] == {'lat': '49.847586', 'lon': '3.282103'}
+            assert address['id'] == '3.282103;49.847586'
             assert len(address['administrative_regions']) == 1
 
 
 @config({'scenario': 'new_default'})
-class TestNewDefaultAutocompleteAndRouting(AbstractAutocompleteAndRouting,
-                                           NewDefaultScenarioAbstractTestFixture):
+class TestNewDefaultAutocompleteAndRouting(
+    AbstractAutocompleteAndRouting, NewDefaultScenarioAbstractTestFixture
+):
     pass
 
 
 @config({'scenario': 'distributed'})
-class TestDistributedAutocompleteAndRouting(AbstractAutocompleteAndRouting,
-                                         NewDefaultScenarioAbstractTestFixture):
+class TestDistributedAutocompleteAndRouting(
+    AbstractAutocompleteAndRouting, NewDefaultScenarioAbstractTestFixture
+):
     pass

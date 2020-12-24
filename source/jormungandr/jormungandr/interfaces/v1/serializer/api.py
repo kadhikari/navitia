@@ -1,3 +1,4 @@
+# coding: utf-8
 
 # This file is part of Navitia,
 #     the software to build cool stuff with public transport.
@@ -31,19 +32,43 @@ from __future__ import absolute_import, print_function, unicode_literals, divisi
 import datetime
 import pytz
 
-from jormungandr.interfaces.v1.serializer import pt, schedule, report, base, status, geo_status, graphical_isochron, \
-    heat_map
-from jormungandr.interfaces.v1.serializer.base import NullableDictSerializer, LambdaField, PbNestedSerializer, \
-    DescribedField, AmountSerializer
-from jormungandr.interfaces.v1.serializer.fields import ErrorSerializer, FeedPublisherSerializer, \
-        PaginationSerializer, LinkSchema, NoteSerializer, ExceptionSerializer
+from jormungandr.interfaces.v1.serializer import (
+    pt,
+    schedule,
+    report,
+    base,
+    status,
+    geo_status,
+    graphical_isochron,
+    heat_map,
+)
+from jormungandr.interfaces.v1.serializer.base import (
+    NullableDictSerializer,
+    LambdaField,
+    PbNestedSerializer,
+    DescribedField,
+    AmountSerializer,
+)
+from jormungandr.interfaces.v1.serializer.fields import (
+    ErrorSerializer,
+    FeedPublisherSerializer,
+    PaginationSerializer,
+    LinkSchema,
+    NoteSerializer,
+    ExceptionSerializer,
+)
 from jormungandr.interfaces.v1.make_links import create_external_link
 from jormungandr.interfaces.v1.serializer.journey import TicketSerializer, JourneySerializer
 import serpy
 
 from jormungandr.interfaces.v1.serializer.jsonschema.fields import Field, MethodField
 from jormungandr.interfaces.v1.serializer.time import DateTimeDictField
-from jormungandr.utils import get_current_datetime_str, get_timezone_str
+from jormungandr.utils import (
+    get_current_datetime_str,
+    get_timezone_str,
+    NOT_A_DATE_TIME,
+    navitia_utcfromtimestamp,
+)
 from jormungandr.interfaces.v1.serializer.pt import AddressSerializer
 from jormungandr.interfaces.v1.serializer import jsonschema
 from jormungandr.interfaces.v1.serializer.status import CoverageErrorSerializer
@@ -59,16 +84,18 @@ class ContextSerializer(PbNestedSerializer):
         self.is_utc = is_utc
 
     car_direct_path = MethodField(schema_type=CO2Serializer(), display_none=False)
-    current_datetime = MethodField(schema_type=str,
-                                   display_none=False,
-                                   description='The datetime of the request (considered as "now")')
-    timezone = MethodField(schema_type=str,
-                           display_none=False,
-                           description='Timezone of any datetime in the response, '
-                                       'default value Africa/Abidjan (UTC)')
+    current_datetime = MethodField(
+        schema_type=str, display_none=False, description='The datetime of the request (considered as "now")'
+    )
+    timezone = MethodField(
+        schema_type=str,
+        display_none=False,
+        description='Timezone of any datetime in the response, ' 'default value Africa/Abidjan (UTC)',
+    )
 
     def get_car_direct_path(self, obj):
         from navitiacommon import response_pb2
+
         if isinstance(obj, response_pb2.Response) and obj.HasField(str('car_co2_emission')):
             return CO2Serializer(obj, display_none=False).data
         return None
@@ -86,10 +113,11 @@ class PTReferentialSerializerNoContext(serpy.Serializer):
     feed_publishers = FeedPublisherSerializer(many=True, display_none=True)
     disruptions = pt.DisruptionSerializer(attr='impacts', many=True, display_none=True)
     notes = DescribedField(schema_type=NoteSerializer(many=True))
+    links = DescribedField(schema_type=LinkSchema(many=True))
 
 
 class PTReferentialSerializer(PTReferentialSerializerNoContext):
-    #ContextSerializer can not be used directly because context does not exist in protobuf
+    # ContextSerializer can not be used directly because context does not exist in protobuf
     context = MethodField(schema_type=ContextSerializer(), display_none=False)
 
     def get_context(self, obj):
@@ -101,7 +129,7 @@ class LinesSerializer(PTReferentialSerializer):
 
 
 class DisruptionsSerializer(PTReferentialSerializer):
-    #we already have a disruptions fields by default
+    # we already have a disruptions fields by default
     pass
 
 
@@ -183,6 +211,7 @@ class PlacesSerializer(serpy.Serializer):
     disruptions = pt.DisruptionSerializer(attr='impacts', many=True, display_none=True)
     places = pt.PlaceSerializer(many=True)
     context = MethodField(schema_type=ContextSerializer(), display_none=False)
+    links = DescribedField(schema_type=LinkSchema(many=True))
 
     def get_context(self, obj):
         return ContextSerializer(obj, display_none=False).data
@@ -193,6 +222,7 @@ class PtObjectsSerializer(serpy.Serializer):
     feed_publishers = FeedPublisherSerializer(many=True, display_none=True)
     disruptions = pt.DisruptionSerializer(attr='impacts', many=True, display_none=True)
     pt_objects = pt.PtObjectSerializer(many=True, attr='places')
+    links = DescribedField(schema_type=LinkSchema(many=True))
     context = MethodField(schema_type=ContextSerializer(), display_none=False)
 
     def get_context(self, obj):
@@ -207,6 +237,7 @@ class CoverageDateTimeField(DateTimeDictField):
     """
     custom date time field for coverage, uses the coverage's timezone to format the date
     """
+
     def __init__(self, field_name=None, **kwargs):
         super(CoverageDateTimeField, self).__init__(**kwargs)
         self.field_name = field_name
@@ -214,9 +245,11 @@ class CoverageDateTimeField(DateTimeDictField):
     def to_value(self, coverage):
         tz_name = coverage.get('timezone')
         field_value = coverage.get(self.field_name)
-        if not tz_name or not field_value:
+        if not tz_name or field_value is None:
             return None
-        dt = datetime.datetime.utcfromtimestamp(field_value)
+        dt = navitia_utcfromtimestamp(field_value)
+        if not dt:
+            return NOT_A_DATE_TIME
         tz = pytz.timezone(tz_name)
         if not tz:
             return None
@@ -227,13 +260,19 @@ class CoverageDateTimeField(DateTimeDictField):
 
 class CoverageSerializer(NullableDictSerializer):
     id = Field(attr="region_id", schema_type=str, display_none=True, description='Identifier of the coverage')
-    start_production_date = Field(schema_type=str, description='Beginning of the production period. '
-                                                               'We only have data on this production period')
-    end_production_date = Field(schema_type=str, description='End of the production period. '
-                                                             'We only have data on this production period')
-    last_load_at = LambdaField(method=lambda _, o: CoverageDateTimeField('last_load_at').to_value(o),
-                               description='Datetime of the last data loading',
-                               schema_type=str)
+    start_production_date = Field(
+        schema_type=str,
+        description='Beginning of the production period. ' 'We only have data on this production period',
+    )
+    end_production_date = Field(
+        schema_type=str,
+        description='End of the production period. ' 'We only have data on this production period',
+    )
+    last_load_at = LambdaField(
+        method=lambda _, o: CoverageDateTimeField('last_load_at').to_value(o),
+        description='Datetime of the last data loading',
+        schema_type=str,
+    )
     name = Field(schema_type=str, display_none=True, description='Name of the coverage')
     status = Field(schema_type=str)
     shape = Field(schema_type=str, display_none=True, description='GeoJSON of the shape of the coverage')
@@ -243,6 +282,7 @@ class CoverageSerializer(NullableDictSerializer):
 
 class CoveragesSerializer(serpy.DictSerializer):
     regions = CoverageSerializer(many=True)
+    links = DescribedField(schema_type=LinkSchema(many=True))
     context = MethodField(schema_type=ContextSerializer(), display_none=False)
 
     def get_context(self, obj):
@@ -286,24 +326,33 @@ class JourneysSerializer(JourneysCommon):
         return ContextSerializer(obj, display_none=False).data
 
 
-class DeparturesSerializer(PTReferentialSerializer):
+class SchedulesSerializer(PTReferentialSerializer):
+    exceptions = DescribedField(schema_type=ExceptionSerializer(many=True))
+
+
+class DeparturesSerializer(SchedulesSerializer):
     departures = schedule.PassageSerializer(many=True, attr='next_departures', display_none=True)
 
 
-class ArrivalsSerializer(PTReferentialSerializer):
+class ArrivalsSerializer(SchedulesSerializer):
     arrivals = schedule.PassageSerializer(many=True, attr='next_arrivals', display_none=True)
 
 
-class StopSchedulesSerializer(PTReferentialSerializer):
+class StopSchedulesSerializer(SchedulesSerializer):
     stop_schedules = schedule.StopScheduleSerializer(many=True, display_none=True)
 
 
-class RouteSchedulesSerializer(PTReferentialSerializer):
+class RouteSchedulesSerializer(SchedulesSerializer):
     route_schedules = schedule.RouteScheduleSerializer(many=True, display_none=True)
 
 
 class LineReportsSerializer(PTReferentialSerializer):
     line_reports = report.LineReportSerializer(many=True, display_none=True)
+    warnings = base.BetaEndpointsSerializer()
+
+
+class EquipmentReportsSerializer(PTReferentialSerializer):
+    equipment_reports = report.EquipmentReportSerializer(many=True, display_none=True)
     warnings = base.BetaEndpointsSerializer()
 
 
@@ -366,12 +415,13 @@ class DictAddressesSerializer(serpy.DictSerializer):
         return obj.get('message')
 
 
-class TechnicalStatusSerializer(serpy.DictSerializer):
+class TechnicalStatusSerializer(NullableDictSerializer):
     regions = status.CommonStatusSerializer(many=True, display_none=False)
     jormungandr_version = Field(schema_type=str, display_none=True)
     bss_providers = status.BssProviderSerializer(many=True, display_none=False)
     context = MethodField(schema_type=ContextSerializer(), display_none=False)
     warnings = base.BetaEndpointsSerializer()
+    redis = status.RedisStatusSerializer(display_none=False)
 
     def get_context(self, obj):
         return ContextSerializer(obj, is_utc=True, display_none=False).data

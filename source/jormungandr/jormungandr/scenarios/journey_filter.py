@@ -36,6 +36,7 @@ import six
 from jormungandr.scenarios.utils import compare, get_or_default
 from navitiacommon import response_pb2
 from jormungandr.utils import pb_del_if, ComposedFilter, portable_min
+from jormungandr.fallback_modes import FallbackModes
 
 
 def delete_journeys(responses, request):
@@ -117,7 +118,7 @@ def filter_journeys(responses, instance, request):
     """
     is_debug = request.get('debug', False)
 
-    #DEBUG
+    # DEBUG
     if is_debug:
         logger = logging.getLogger(__name__)
         logger.debug("All journeys:")
@@ -128,27 +129,37 @@ def filter_journeys(responses, instance, request):
     # build filters
     min_bike = request.get('_min_bike', None)
     min_car = request.get('_min_car', None)
+    min_taxi = request.get('_min_taxi', None)
     orig_modes = request.get('origin_mode', [])
     dest_modes = request.get('destination_mode', [])
     min_nb_transfers = request.get('min_nb_transfers', 0)
 
-    filters = [FilterTooShortHeavyJourneys(min_bike=min_bike, min_car=min_car,
-                                           orig_modes=orig_modes, dest_modes=dest_modes),
-               FilterTooLongWaiting(),
-               FilterMinTransfers(min_nb_transfers=min_nb_transfers)]
+    filters = [
+        FilterTooShortHeavyJourneys(
+            min_bike=min_bike, min_car=min_car, min_taxi=min_taxi, orig_modes=orig_modes, dest_modes=dest_modes
+        ),
+        FilterTooLongWaiting(),
+        FilterMinTransfers(min_nb_transfers=min_nb_transfers),
+    ]
+
+    # TODO: we should handle this better....
+    if (request.get('_override_scenario') or instance._scenario_name) == 'distributed':
+        filters.append(FilterTooLongDirectPath(instance=instance, request=request))
 
     # we add more filters in some special cases
 
     max_successive = request.get('_max_successive_physical_mode', 0)
     if max_successive != 0:
-        limited_mode_id = instance.successive_physical_mode_to_limit_id # typically : physical_mode:bus
-        filters.append(FilterMaxSuccessivePhysicalMode(successive_physical_mode_to_limit_id=limited_mode_id,
-                                                       max_successive_physical_mode=max_successive))
+        limited_mode_id = instance.successive_physical_mode_to_limit_id  # typically : physical_mode:bus
+        filters.append(
+            FilterMaxSuccessivePhysicalMode(
+                successive_physical_mode_to_limit_id=limited_mode_id, max_successive_physical_mode=max_successive
+            )
+        )
 
     dp = request.get('direct_path', 'indifferent')
     if dp != 'indifferent':
         filters.append(FilterDirectPath(dp=dp))
-
 
     # compose filters
 
@@ -167,9 +178,10 @@ class FilterTooShortHeavyJourneys(SingleJourneyFilter):
 
     message = 'too_short_heavy_mode_fallback'
 
-    def __init__(self, min_bike=None, min_car=None, orig_modes=None, dest_modes=None):
+    def __init__(self, min_bike=None, min_car=None, min_taxi=None, orig_modes=None, dest_modes=None):
         self.min_bike = min_bike
         self.min_car = min_car
+        self.min_taxi = min_taxi
         self.orig_modes = [] if orig_modes is None else orig_modes
         self.dest_modes = [] if dest_modes is None else dest_modes
 
@@ -181,8 +193,8 @@ class FilterTooShortHeavyJourneys(SingleJourneyFilter):
         """
 
         def _exceed_min_duration(current_section, journey, min_duration, orig_modes=None, dest_modes=None):
-            orig_modes=[] if orig_modes is None else orig_modes
-            dest_modes=[] if dest_modes is None else dest_modes
+            orig_modes = [] if orig_modes is None else orig_modes
+            dest_modes = [] if dest_modes is None else dest_modes
 
             if current_section == journey.sections[0]:
                 return 'walking' in orig_modes and current_section.duration < min_duration
@@ -197,17 +209,35 @@ class FilterTooShortHeavyJourneys(SingleJourneyFilter):
             elif s.type != response_pb2.STREET_NETWORK:
                 continue
 
-            if s.street_network.mode == response_pb2.Car \
-                    and self.min_car is not None \
-                    and _exceed_min_duration(s, journey, min_duration=self.min_car,
-                                             orig_modes=self.orig_modes, dest_modes=self.dest_modes):
+            min_mode = None
+            if s.street_network.mode == response_pb2.Car:
+                min_mode = self.min_car
+            elif s.street_network.mode == response_pb2.Taxi:
+                min_mode = self.min_taxi
+
+            if (
+                s.street_network.mode in (response_pb2.Car, response_pb2.Taxi)
+                and min_mode is not None
+                and _exceed_min_duration(
+                    s, journey, min_duration=min_mode, orig_modes=self.orig_modes, dest_modes=self.dest_modes
+                )
+            ):
                 return False
-            if not on_bss \
-                    and s.street_network.mode == response_pb2.Bike \
-                    and self.min_bike is not None \
-                    and _exceed_min_duration(s, journey, min_duration=self.min_bike,
-                                             orig_modes=self.orig_modes, dest_modes=self.dest_modes):
+
+            if (
+                not on_bss
+                and s.street_network.mode == response_pb2.Bike
+                and self.min_bike is not None
+                and _exceed_min_duration(
+                    s,
+                    journey,
+                    min_duration=self.min_bike,
+                    orig_modes=self.orig_modes,
+                    dest_modes=self.dest_modes,
+                )
+            ):
                 return False
+
         return True
 
 
@@ -243,9 +273,7 @@ class FilterMaxSuccessivePhysicalMode(SingleJourneyFilter):
 
     message = 'too_much_successive_section_same_physical_mode'
 
-    def __init__(self,
-                 successive_physical_mode_to_limit_id='physical_mode:Bus',
-                 max_successive_physical_mode=3):
+    def __init__(self, successive_physical_mode_to_limit_id='physical_mode:Bus', max_successive_physical_mode=3):
         self.successive_physical_mode_to_limit_id = successive_physical_mode_to_limit_id
         self.max_successive_physical_mode = max_successive_physical_mode
 
@@ -304,6 +332,38 @@ class FilterDirectPath(SingleJourneyFilter):
         return True
 
 
+class FilterTooLongDirectPath(SingleJourneyFilter):
+
+    message = 'too_long_direct_path'
+
+    def __init__(self, instance, request):
+        self.instance = instance
+        self.request = request
+        self.logger = logging.getLogger(__name__)
+
+    def _get_mode_of_journey(self, journey):
+        mode = FallbackModes.modes_str() & set(journey.tags)
+        if len(mode) != 1:
+            self.logger.error('Cannot determine the mode of direct path: {}'.format(mode))
+            return None
+
+        return next(iter(mode))
+
+    def filter_func(self, journey):
+        """
+        eliminates too long direct_path journey
+        """
+        # we filter only direct path
+        if 'non_pt' not in journey.tags:
+            return True
+
+        direct_path_mode = self._get_mode_of_journey(journey)
+
+        attr_name = 'max_{}_direct_path_duration'.format(direct_path_mode)
+        max_duration = self.request[attr_name]
+        return max_duration > journey.duration
+
+
 def get_min_connections(journeys):
     """
     Returns min connection count among journeys
@@ -333,43 +393,52 @@ def is_walk_after_parking(journey, idx_section):
     """
     True if section at given index is a walking after/before parking car/bss, False otherwise
     """
-    is_park_section = lambda section: section.type in {response_pb2.PARK,
-                                                       response_pb2.LEAVE_PARKING,
-                                                       response_pb2.BSS_PUT_BACK,
-                                                       response_pb2.BSS_RENT}
+    is_park_section = lambda section: section.type in {
+        response_pb2.PARK,
+        response_pb2.LEAVE_PARKING,
+        response_pb2.BSS_PUT_BACK,
+        response_pb2.BSS_RENT,
+    }
 
     s = journey.sections[idx_section]
-    if s.type == response_pb2.STREET_NETWORK and s.street_network.mode == response_pb2.Walking and \
-        ((idx_section - 1 >= 0 and is_park_section(journey.sections[idx_section - 1])) or
-         (idx_section + 1 < len(journey.sections) and is_park_section(journey.sections[idx_section + 1]))):
+    if (
+        s.type == response_pb2.STREET_NETWORK
+        and s.street_network.mode == response_pb2.Walking
+        and (
+            (idx_section - 1 >= 0 and is_park_section(journey.sections[idx_section - 1]))
+            or (idx_section + 1 < len(journey.sections) and is_park_section(journey.sections[idx_section + 1]))
+        )
+    ):
         return True
     return False
 
 
-def similar_journeys_vj_generator(journey):
-    for idx, s in enumerate(journey.sections):
-        # special case, we don't want to consider the walking section after/before parking a car
-        # so CAR / PARK / WALK / PT is equivalent to CAR / PARK / PT
-        if is_walk_after_parking(journey, idx):
-            continue
+def similar_pt_section_vj(section):
+    return 'pt:%s' % section.pt_display_informations.uris.vehicle_journey
 
+
+def similar_pt_section_line(section):
+    return "pt:{}".format(section.pt_display_informations.uris.line)
+
+
+def similar_journeys_generator(journey, pt_functor):
+    for idx, s in enumerate(journey.sections):
         if s.type == response_pb2.PUBLIC_TRANSPORT:
-            yield "pt:{}".format(s.pt_display_informations.uris.vehicle_journey)
-        elif s.type == response_pb2.STREET_NETWORK:
-            yield "sn:{}".format(s.street_network.mode)
+            yield pt_functor(s)
+        elif s.type == response_pb2.STREET_NETWORK and is_walk_after_parking(journey, idx):
+            continue
+        elif s.type in (response_pb2.STREET_NETWORK, response_pb2.CROW_FLY):
+            yield 'sn:%s' % s.street_network.mode
+
+
+def similar_journeys_vj_generator(journey):
+    for v in similar_journeys_generator(journey, similar_pt_section_vj):
+        yield v
 
 
 def similar_journeys_line_generator(journey):
-    for idx, s in enumerate(journey.sections):
-        # special case, we don't want to consider the walking section after/before parking a car
-        # so CAR / PARK / WALK / PT is equivalent to CAR / PARK / PT
-        if is_walk_after_parking(journey, idx):
-            continue
-
-        if s.type == response_pb2.PUBLIC_TRANSPORT:
-            yield "pt:{}".format(s.pt_display_informations.uris.line)
-        elif s.type == response_pb2.STREET_NETWORK:
-            yield "sn:{}".format(s.street_network.mode)
+    for v in similar_journeys_generator(journey, similar_pt_section_line):
+        yield v
 
 
 def shared_section_generator(journey):
@@ -421,25 +490,31 @@ def _debug_journey(journey):
     sections = []
     for s in journey.sections:
         if s.type == response_pb2.PUBLIC_TRANSPORT:
-            sections.append(u"{line} ({vj})".format(line=s.pt_display_informations.uris.line,
-                                                    vj=s.pt_display_informations.uris.vehicle_journey))
+            sections.append(
+                u"{line} ({vj})".format(
+                    line=s.pt_display_informations.uris.line, vj=s.pt_display_informations.uris.vehicle_journey
+                )
+            )
         elif s.type == response_pb2.STREET_NETWORK:
             sections.append(shorten(response_pb2.StreetNetworkMode.Name(s.street_network.mode)))
         else:
             sections.append(shorten(response_pb2.SectionType.Name(s.type)))
 
     def _datetime_to_str(ts):
-        #DEBUG, no tz handling
+        # DEBUG, no tz handling
         dt = datetime.datetime.utcfromtimestamp(ts)
         return dt.strftime("%dT%H:%M:%S")
 
-    logger.debug(u"journey {id}: {dep} -> {arr} - {duration} ({fallback} map) | ({sec})".format(
-        id=journey.internal_id,
-        dep=_datetime_to_str(journey.departure_date_time),
-        arr=_datetime_to_str(journey.arrival_date_time),
-        duration=datetime.timedelta(seconds=journey.duration),
-        fallback=datetime.timedelta(seconds=fallback_duration(journey)),
-        sec=" - ".join(sections)))
+    logger.debug(
+        u"journey {id}: {dep} -> {arr} - {duration} ({fallback} map) | ({sec})".format(
+            id=journey.internal_id,
+            dep=_datetime_to_str(journey.departure_date_time),
+            arr=_datetime_to_str(journey.arrival_date_time),
+            duration=datetime.timedelta(seconds=journey.duration),
+            fallback=datetime.timedelta(seconds=fallback_duration(journey)),
+            sec=" - ".join(sections),
+        )
+    )
 
 
 def get_qualified_journeys(responses):
@@ -448,6 +523,10 @@ def get_qualified_journeys(responses):
     :return: generator of journeys
     """
     return (j for r in responses for j in r.journeys if not to_be_deleted(j))
+
+
+def nb_qualifed_journeys(responses):
+    return sum(1 for j in get_qualified_journeys(responses))
 
 
 def get_all_journeys(responses):
@@ -488,6 +567,27 @@ def apply_final_journey_filters(response_list, instance, request):
     _filter_too_much_connections(journeys, instance, request)
 
 
+def filter_detailed_journeys(responses, request):
+    journey_generator = get_qualified_journeys
+    if request.get('debug', False):
+        journey_generator = get_all_journeys
+
+    journeys = journey_generator(responses)
+
+    min_bike = request.get('_min_bike', None)
+    min_car = request.get('_min_car', None)
+    min_taxi = request.get('_min_taxi', None)
+    orig_modes = request.get('origin_mode', [])
+    dest_modes = request.get('destination_mode', [])
+
+    too_heavy_journey_filter = FilterTooShortHeavyJourneys(
+        min_bike=min_bike, min_car=min_car, min_taxi=min_taxi, orig_modes=orig_modes, dest_modes=dest_modes
+    )
+    f_wrapped = filter_wrapper(is_debug=request.get('debug', False), filter_obj=too_heavy_journey_filter)
+
+    [f_wrapped(j) for j in journeys]
+
+
 def _get_worst_similar(j1, j2, request):
     """
     Decide which is the worst journey between 2 similar journeys.
@@ -521,11 +621,8 @@ def _get_worst_similar(j1, j2, request):
     if get_min_waiting(j1) != get_min_waiting(j2):
         return j1 if get_min_waiting(j1) < get_min_waiting(j2) else j2
 
-
     def get_mode_rank(section):
-        mode_rank = {response_pb2.Car: 0,
-                     response_pb2.Bike: 1,
-                     response_pb2.Walking: 2}
+        mode_rank = {response_pb2.Car: 0, response_pb2.Bike: 1, response_pb2.Walking: 2}
         return mode_rank.get(section.street_network.mode)
 
     def is_fallback(section):
@@ -571,12 +668,18 @@ def _filter_similar_journeys(journey_pairs_pool, request, similar_journey_genera
         if compare(j1, j2, similar_journey_generator):
             # After comparison, if the 2 journeys are similar, the worst one must be eliminated
             worst = _get_worst_similar(j1, j2, request)
-            logger.debug("the journeys {}, {} are similar, we delete {}".format(j1.internal_id,
-                                                                                j2.internal_id,
-                                                                                worst.internal_id))
+            logger.debug(
+                "the journeys {}, {} are similar, we delete {}".format(
+                    j1.internal_id, j2.internal_id, worst.internal_id
+                )
+            )
 
-            mark_as_dead(worst, is_debug, 'duplicate_journey', 'similar_to_{other}'
-                          .format(other=j1.internal_id if worst == j2 else j2.internal_id))
+            mark_as_dead(
+                worst,
+                is_debug,
+                'duplicate_journey',
+                'similar_to_{other}'.format(other=j1.internal_id if worst == j2 else j2.internal_id),
+            )
 
 
 def _filter_too_much_connections(journeys, instance, request):
@@ -585,9 +688,11 @@ def _filter_too_much_connections(journeys, instance, request):
     minimum number of connections among all journeys + _max_additional_connections
     """
     logger = logging.getLogger(__name__)
-    max_additional_connections = get_or_default(request, '_max_additional_connections',
-                                                instance.max_additional_connections)
+    max_additional_connections = get_or_default(
+        request, '_max_additional_connections', instance.max_additional_connections
+    )
     import itertools
+
     it1, it2 = itertools.tee(journeys, 2)
     min_connections = get_min_connections(it1)
     is_debug = request.get('debug', False)

@@ -27,40 +27,40 @@ There are multiple ways to make it available but one easy way is to change the P
 
     PYTHONPATH=<path_to_tyr>:<path_to_navitiacommon> TYR_CONFIG_FILE=<your_config_file.py> manage_tyr.py <command>
 
-To list all available command, call manage_py with the -h option.
+To list all available commands, call manage_py with the -h option.
 
-To setup the tyr database you need to call:
+To setup the Tyr database, you need to call:
 
     PYTHONPATH=<path_to_tyr>:<path_to_navitiacommon> TYR_CONFIG_FILE=<your_config_file.py> manage_tyr.py db upgrade
 
 
 ### Services
 
-Tyr is split in 3 different services:
+Tyr is split into 3 different services:
 
-* tyr beat
-    Scheduler based on celery. Launches a worker when a task need to be done
+* Tyr beat
+    Scheduler based on celery. Launches a worker when a task needs to be done
 
-* tyr worker
-    Launched by tyr beat. They are the one getting the job done
+* Tyr worker
+    Launched by Tyr beat, it does all the heavy work.
 
-    If no worker is launched, a lot of tyr command will not work
+    If no worker exists, a lot of Tyr's command will not work.
 
-* tyr reloader
-    Handle the reloading of the kraken (this is the old way of handling real time data)
+* Tyr reloader
+    Handles the reloading of Krakens instances (this is the old way of handling real time data)
 
 
-### Example with honcho
+### Example with Honcho
 
-In CanalTP production environments tyr is installed as a service via debian packages, but to configure it on dev environment honcho can be used.
+In Kisio production environments, Tyr is installed as a service via debian packages, but to configure it on dev environment Honcho can be used.
 
-Honcho is handy to launch all the different services.
+Honcho is handy to start all the different services.
 
-install honcho:
+Install honcho:
 
     pip install honcho
 
-In the tyr directory create 2 files:
+In the Tyr's directory, create 2 files:
 
 Procfile:
 ```
@@ -74,17 +74,17 @@ scheduler: celery beat -A tyr.tasks
 PYTHONPATH=.:../navitiacommon
 TYR_CONFIG_FILE=dev_settings.py
 ```
-with dev_settings.py the tyr settings file
+With dev_settings.py being your Tyr's settings file.
 
-With those 2 files, running the commande ```honcho start``` in the tyr directory will launch all tyr services.
+With those 2 files, running the commande ```honcho start``` in the Tyr's directory will start all Tyr's services.
 
 ## Running tests
 
-You need to install the dependancies for developements:
+You will need to install the dependencies for developements:
 ```
 pip install -r requirements_dev.txt
 ```
-You will need docker on your machine, it will be used for spawning a database.
+You will need Docker on your machine, it will be used for spawning a database.
 
 You will also need the python protobuf files from Navitia, so you should use CMake target `protobuf_files` for that :
 ```
@@ -95,11 +95,11 @@ make protobuf_files
 
 then run the test:
 ```
-PYTHONPATH=../navitiacommon py.test tests
+PYTHONPATH=../navitiacommon py.test --doctest-modules --ignore=migrations/
 ```
 Or if you use honcho:
 ```
-honcho run py.test tests
+honcho run py.test --doctest-modules --ignore=migrations/
 ```
 
 
@@ -116,6 +116,10 @@ You may want to specify an instance to filter these jobs :
 A job is created when a new dataset is detected by tyr_beat.
 You can also trigger a data integration by posting your dataset to the job endpoint filtered by instance.
 
+```bash
+curl -F 'file=@/PATH/TO/FILE' -X POST '$HOST/v0/jobs/<INSTANCE>'
+```
+
 ## Authentication
 
 With the authentication we can associate a user account to
@@ -126,7 +130,7 @@ With the authentication we can associate a user account to
 
 For the authentication webservice to work, tyr_beat and tyr_worker need to be run.
 
-### Subcription
+## Subcription
 
 Subscription is done via calls to Tyr webservice. Tyr handles:
 
@@ -140,9 +144,9 @@ The api returns 4XX response on failure, with a json message containing the attr
 
 For a simple user account creation see the [example section](#simple-example)
 
-### Tyr API
+## Tyr API
 
-#### Instances
+### Instances
 
 Returns the list of instances
 
@@ -218,12 +222,12 @@ response:
 
 You can also update the config of the instance with a PUT request.
 
-For instance, if you have many instances on the same geographical area, you may want to set the priority property to define which one should be used first when requesting navitia APIs without coverage ($navitia_uri/v1/journeys, $navitia_uri/v1/coord/, etc)
+For instance, if you have many instances on the same geographical area, you may want to set the priority property to define which one should be used first when requesting navitia APIs without coverage ($navitia_uri/v1/journeys, $navitia_uri/v1/coord/, etc), knowing that the highest value will be chosen first when comparing instances.
 ```bash
     curl 'http://localhost:5000/v0/instances/<INSTANCE>?priority=1' -X PUT
 ```
 
-#### Api
+### Api
 
 Returns the list of available API. For the moment there is only one, the "ALL" API.
 
@@ -238,7 +242,7 @@ Returns the list of available API. For the moment there is only one, the "ALL" A
 ]
 ```
 
-#### Users
+### Users
 
 Delete, add or update a user
 
@@ -382,7 +386,7 @@ Get all a user information:
 }
 ```
 
-#### GET Parameters
+###### GET Parameters
 
 name             | description                                                                          | required | default        |
 -----------------|--------------------------------------------------------------------------------------|----------|----------------|
@@ -459,7 +463,7 @@ To create a user, parameters need to given in the query's string or in json send
 
 Note: email addresses are validated via api not only on the format but on it's existence. However no email are send.
 
-#### POST Parameters
+###### POST Parameters
 
 name         | description                                                                          | required | default                            |
 -------------|--------------------------------------------------------------------------------------|----------|------------------------------------|
@@ -488,13 +492,13 @@ If you use the json format as input, boolean need to be passed as string.
 }
 ```
 
-#### PUT Parameters
+###### PUT Parameters
 
 They are the same as POST.
 When a parameter is missing, it is not changed.
 When PUTing the exact result of a GET (using disable_geojson or not), nothing is changed.
 
-##### Shape modification
+###### Shape modification
 `has_shape` is not a parameter (no effect whatsoever).
 To modify a shape, PUT the new shape (so far, simple feature only):
 ```json
@@ -516,7 +520,7 @@ To modify a shape, PUT the new shape (so far, simple feature only):
 ```
 To remove a shape, PUT `{"shape":null}`.
 
-#### Keys
+###### Keys
 
 The API handles the user's token
 
@@ -557,7 +561,7 @@ To delete a token:
 }
 ```
 
-#### Authorizations
+###### Authorizations
 
 This API handles access policy for a given user and a given kraken instance.
 
@@ -586,8 +590,8 @@ This is useful only is the instance is not "free"
     "login": "alex"
 }
 ```
-#### Other APIs
-##### EndPoints
+### Other APIs
+#### EndPoints
 
 Endpoints are used for handling multiple user base with the same plateform. Each user is associated with only one
 endpoint. it's possible for a user to have an account in two separate endpoint with the same email used.
@@ -624,23 +628,39 @@ For creating a new one the POST verb must be use and the request must contain a 
 }
 ```
 
-The hostnames are facultavies, it's only have to be set if we want to enforce the host used for accessing the API.
+The hostnames are optional, it's only have to be set if we want to enforce the host used for accessing the API.
 Update can be done with the PUT verb with the same kind of json.
 
-##### Billing plans
+#### Billing plans
 
 The API handles the users's billing plan.
 
-#### Parameters
+ - Parameters:
 
-name               | description                                                                          | required | default                                                      
+name               | description                                                                          | required | default  
 -------------------|--------------------------------------------------------------------------------------|----------|-----------------------------------------
-name               | name of the billing plan                                                             | yep      |                                       
+name               | name of the billing plan                                                             | yep      |  
 end_point_id       | the id of the endpoint for this billing plan (in most case the default value is good enough) | nope     | the default end_point (navitia.io)
 default            | if this plan is the default one for the end_point                                    | nope     | false
-max_request_count  | max request count for this billing plan                                              | nope     |                                    
-max_object_count   | max object count for this billing plan                                               | nope     | 
+max_request_count  | max request count for this billing plan                                              | nope     |  
+max_object_count   | max object count for this billing plan                                               | nope     |
 
+
+#### Cities
+
+This endpoint allows to manage the cities database.
+
+###### GET
+
+    GET $HOST/v0/cities/status/
+
+Returns the alembic version of the database if it's reachable.
+
+###### POST
+
+    POST $HOST/v0/cities/ -F file=@<path to OSM boundaries file>
+
+Provided with the OSM boundaries file, the 'cities' binary will be called in order to populate the cities database.
 
 
 ### Simple example
@@ -703,8 +723,8 @@ instance:
     curl "http://localhost:5000/v0/instances/fr-bre/poi_types"
 
 If you want to change something on poi types you have to POST again all the json (previous AND new poi types):
-    
-    curl 'http://localhost:5000/v0/instances/fr-bre/poi_types' -X POST -H 'content-type: application/json' -d '{"poi_types": [{"id": "pdv", "name": "Point de vente"},],"rules": [{"osm_tags_filters": [{"key": "amenity:park", "value": "yes"}, {"key": "amenity", "value": "shop"}], "poi_type_id": "pdv"}]}'
+
+    curl 'http://localhost:5000/v0/instances/fr-bre/poi_types' -X POST -H 'content-type: application/json' -d '{"poi_types": [{"id": "amenity:bicycle_rental", "name": "Station VLS"}, {"id": "amenity:parking", "name": "Parking"}, {"id": "pdv", "name": "Point de vente"}],"rules": [{"osm_tags_filters": [{"key": "amenity", "value": "bicycle_rental"}], "poi_type_id": "amenity:bicycle_rental"}, {"osm_tags_filters": [{"key": "amenity", "value": "parking"}], "poi_type_id": "amenity:parking"}, {"osm_tags_filters": [{"key": "amenity:park", "value": "yes"}, {"key": "amenity", "value": "shop"}], "poi_type_id": "pdv"}]}'
 
 Any update requires a complete POST because the order of the rules matters, so no PUT is allowed on a partial object.
 
@@ -712,9 +732,19 @@ Finally if you want to delete a poi_type you just have to use the DELETE action:
 
     curl 'http://localhost:5000/v0/instances/fr-bre/poi_types' -X DELETE
 
+
+The same way, you can decide what types of POI should be extracted for a "general" autocomplete region:
+
+    curl "http://localhost:5000/v0/autocomplete_parameters/france/poi_types"
+
+GET, POST and DELETE verbs are available in the exact same way, for the same functionality, with Mimir in background.
+
 #### Migrate from POI to OSM
 
-Load POI from OSM.
+When one provides a POI file to Tyr a flag is triggered to avoid reading POIs from OSM files.
+If one wants to trigger that flag back to reading POIs from OSM files, it's possible.
+
+Load POIs from OSM file:
 
     PUT $HOST/v0/instances/$INSTANCE_NAME/actions/migrate_from_poi_to_osm
 
@@ -724,6 +754,13 @@ response:
     "action": "Parameter parse_pois_from_osm activated"
 }
 ```
+
+In that case, one might probably want Tyr to forget about the POI files (in case there is a data-reload).
+It is doable (see also [delete](#Delete-data_sets-by-type) section):
+
+    DELETE $HOST/v0/instances/$INSTANCE_NAME/actions/delete_dataset/poi
+
+One will also probably want to provide an OSM file to load data from it (see [Data integration](#Data-integration))
 
 
 #### Delete data_sets by type
@@ -738,3 +775,5 @@ response:
     "action": "All $TYPE datasets deleted for instance $INSTANCE_NAME"
 }
 ```
+
+Types available are `poi`, `fusio`, `osm`, `geopal`, `synonym`, `shape`.

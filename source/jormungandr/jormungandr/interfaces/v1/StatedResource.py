@@ -36,11 +36,12 @@ from jormungandr.authentication import register_used_coverages
 
 
 class StatedResource(DocumentedResource):
-
     def __init__(self, quota=True, *args, **kwargs):
         DocumentedResource.__init__(self, *args, **kwargs)
         self.method_decorators = {'get': []}
         self.get_decorators = self.method_decorators['get']
+        # HEAD is an alias for GET, we need to have the same decorators
+        self.method_decorators['head'] = self.method_decorators['get']
 
         self.get_decorators.append(self._stat_regions)
         if stat_manager.save_stat:
@@ -60,4 +61,5 @@ class StatedResource(DocumentedResource):
             if region:
                 register_used_coverages([region])
             return result
+
         return wrapper

@@ -30,24 +30,29 @@
 # www.navitia.io
 
 from __future__ import absolute_import, print_function, unicode_literals, division
+
+try:
+    from typing import Dict, Text, Deque, List, Tuple
+except ImportError:
+    pass
 from contextlib import contextmanager
-import queue
 from threading import Lock
-from flask.ext.restful import abort
+from flask_restful import abort
 from zmq import green as zmq
+import copy
 
 from jormungandr.exceptions import TechnicalError
 from navitiacommon import response_pb2, request_pb2, type_pb2
 from navitiacommon.default_values import get_value_or_default
 from jormungandr.timezone import set_request_instance_timezone
 import logging
-from .exceptions import DeadSocketException
+from jormungandr.exceptions import DeadSocketException
 from navitiacommon import models
 from importlib import import_module
-from jormungandr import cache, app, global_autocomplete
-from shapely import wkt
-from shapely.geos import ReadingError
-from shapely import geometry
+from jormungandr import cache, memory_cache, app, global_autocomplete
+from jormungandr import fallback_modes as fm
+from shapely import wkt, geometry
+from shapely.geos import ReadingError, PredicateError
 from flask import g
 import flask
 import pybreaker
@@ -55,19 +60,23 @@ from jormungandr import georef, planner, schedule, realtime_schedule, ptref, str
 from jormungandr.scenarios.ridesharing import ridesharing_service
 import itertools
 import six
+import time
+from collections import deque
+from datetime import datetime, timedelta
+from navitiacommon import default_values
+from jormungandr.equipments import EquipmentProviderManager
 
 type_to_pttype = {
-      "stop_area": request_pb2.PlaceCodeRequest.StopArea,
-      "network": request_pb2.PlaceCodeRequest.Network,
-      "company": request_pb2.PlaceCodeRequest.Company,
-      "line": request_pb2.PlaceCodeRequest.Line,
-      "route": request_pb2.PlaceCodeRequest.Route,
-      "vehicle_journey": request_pb2.PlaceCodeRequest.VehicleJourney,
-      "stop_point": request_pb2.PlaceCodeRequest.StopPoint,
-      "calendar": request_pb2.PlaceCodeRequest.Calendar
+    "stop_area": request_pb2.PlaceCodeRequest.StopArea,  # type: ignore
+    "network": request_pb2.PlaceCodeRequest.Network,  # type: ignore
+    "company": request_pb2.PlaceCodeRequest.Company,  # type: ignore
+    "line": request_pb2.PlaceCodeRequest.Line,  # type: ignore
+    "route": request_pb2.PlaceCodeRequest.Route,  # type: ignore
+    "vehicle_journey": request_pb2.PlaceCodeRequest.VehicleJourney,  # type: ignore
+    "stop_point": request_pb2.PlaceCodeRequest.StopPoint,  # type: ignore
+    "calendar": request_pb2.PlaceCodeRequest.Calendar,  # type: ignore
 }
 
-STREET_NETWORK_MODES = ('walking', 'car', 'bss', 'bike', 'ridesharing')
 
 @app.before_request
 def _init_g():
@@ -79,30 +88,64 @@ def _init_g():
 def _set_default_street_network_config(street_network_configs):
     if not isinstance(street_network_configs, list):
         street_network_configs = []
-    default_sn_class = 'jormungandr.street_network.kraken.Kraken'
 
-    modes_in_configs = set(list(itertools.chain.from_iterable(config.get('modes', []) for config in \
-            street_network_configs)))
-    modes_not_set = set(STREET_NETWORK_MODES) - modes_in_configs
-    if modes_not_set:
-        street_network_configs.append({"modes": list(modes_not_set),
-                                       "class": default_sn_class})
+    kraken = {'class': 'jormungandr.street_network.Kraken', 'args': {'timeout': 10}}
+    taxi = {'class': 'jormungandr.street_network.Taxi', 'args': {'street_network': kraken}}
+    ridesharing = {'class': 'jormungandr.street_network.Ridesharing', 'args': {'street_network': kraken}}
+
+    default_sn_class = {mode: kraken for mode in fm.all_fallback_modes}
+    # taxi mode's default class is changed to 'taxi' not kraken
+    default_sn_class.update({fm.FallbackModes.taxi.name: taxi})
+    default_sn_class.update({fm.FallbackModes.ridesharing.name: ridesharing})
+
+    modes_in_configs = set(
+        list(itertools.chain.from_iterable(config.get('modes', []) for config in street_network_configs))
+    )
+    modes_not_set = fm.all_fallback_modes - modes_in_configs
+
+    for mode in modes_not_set:
+        config = {"modes": [mode]}
+        config.update(default_sn_class[mode])
+        street_network_configs.append(copy.deepcopy(config))
+
     return street_network_configs
 
 
-class Instance(object):
+# TODO: use this helper function for all properties if possible
+# Warning: it breaks static type deduction
+def _make_property_getter(attr_name):
+    """
+    a helper function.
 
-    def __init__(self,
-                 context,
-                 name,
-                 zmq_socket,
-                 street_network_configurations,
-                 ridesharing_configurations,
-                 realtime_proxies_configuration,
-                 zmq_socket_type,
-                 autocomplete_type):
+    return a getter for Instance's attr
+    :param attr_name:
+    :return:
+    """
+
+    def _getter(self):
+        return get_value_or_default(attr_name, self.get_models(), self.name)
+
+    return property(_getter)
+
+
+class Instance(object):
+    name = None  # type: Text
+    _sockets = None  # type: Deque[Tuple[zmq.Socket, float]]
+
+    def __init__(
+        self,
+        context,  # type: zmq.Context
+        name,  # type: Text
+        zmq_socket,  # type: Text
+        street_network_configurations,
+        ridesharing_configurations,
+        realtime_proxies_configuration,
+        zmq_socket_type,
+        autocomplete_type,
+        instance_equipment_providers,  # type: List[Text]
+    ):
         self.geom = None
-        self._sockets = queue.Queue()
+        self._sockets = deque()
         self.socket_path = zmq_socket
         self._scenario = None
         self._scenario_name = None
@@ -111,31 +154,73 @@ class Instance(object):
         self.name = name
         self.timezone = None  # timezone will be fetched from the kraken
         self.publication_date = -1
-        self.is_initialized = False #kraken hasn't been called yet we don't have geom nor timezone
-        self.breaker = pybreaker.CircuitBreaker(fail_max=app.config['CIRCUIT_BREAKER_MAX_INSTANCE_FAIL'],
-                                                reset_timeout=app.config['CIRCUIT_BREAKER_INSTANCE_TIMEOUT_S'])
+        self.is_initialized = False  # kraken hasn't been called yet we don't have geom nor timezone
+        self.breaker = pybreaker.CircuitBreaker(
+            fail_max=app.config.get(str('CIRCUIT_BREAKER_MAX_INSTANCE_FAIL'), 5),
+            reset_timeout=app.config.get(str('CIRCUIT_BREAKER_INSTANCE_TIMEOUT_S'), 60),
+        )
         self.georef = georef.Kraken(self)
         self.planner = planner.Kraken(self)
 
         street_network_configurations = _set_default_street_network_config(street_network_configurations)
-        self.street_network_services = street_network.StreetNetwork.get_street_network_services(self,
-                                                                                                street_network_configurations)
-        self.ridesharing_services = []
+        self.street_network_services = street_network.StreetNetwork.get_street_network_services(
+            self, street_network_configurations
+        )
+        self.ridesharing_services = []  # type: List[ridesharing_service.AbstractRidesharingService]
         if ridesharing_configurations is not None:
-            self.ridesharing_services = ridesharing_service.Ridesharing.\
-                get_ridesharing_services(self, ridesharing_configurations)
+            self.ridesharing_services = ridesharing_service.Ridesharing.get_ridesharing_services(
+                self, ridesharing_configurations
+            )
 
         self.ptref = ptref.PtRef(self)
 
         self.schedule = schedule.MixedSchedule(self)
-        self.realtime_proxy_manager = realtime_schedule.RealtimeProxyManager(realtime_proxies_configuration, self)
+        self.realtime_proxy_manager = realtime_schedule.RealtimeProxyManager(
+            realtime_proxies_configuration, self
+        )
 
-        self.autocomplete = global_autocomplete.get(autocomplete_type)
-        if not self.autocomplete:
-            raise TechnicalError('impossible to find autocomplete system {} '
-                                 'cannot initialize instance {}'.format(autocomplete_type, name))
+        self._autocomplete_type = autocomplete_type
+        if self._autocomplete_type is not None and self._autocomplete_type not in global_autocomplete:
+            raise RuntimeError(
+                'impossible to find autocomplete system {} '
+                'cannot initialize instance {}'.format(autocomplete_type, name)
+            )
 
         self.zmq_socket_type = zmq_socket_type
+
+        if app.config[str('DISABLE_DATABASE')]:
+            self.equipment_provider_manager = EquipmentProviderManager(
+                app.config[str('EQUIPMENT_DETAILS_PROVIDERS')]
+            )
+        else:
+            self.equipment_provider_manager = EquipmentProviderManager(
+                app.config[str('EQUIPMENT_DETAILS_PROVIDERS')], self.get_providers_from_db
+            )
+
+        # Init equipment providers from config
+        self.equipment_provider_manager.init_providers(instance_equipment_providers)
+
+    def get_providers_from_db(self):
+        """
+        :return: a callable query of equipment providers associated to the current instance in db
+        """
+        return self._get_models().equipment_details_providers
+
+    @property
+    def autocomplete(self):
+        if self._autocomplete_type:
+            # retrocompat: we need to continue to read configuration from file
+            # while we migrate to database configuration
+            return global_autocomplete.get(self._autocomplete_type)
+        backend = global_autocomplete.get(self.autocomplete_backend)
+        if backend is None:
+            raise RuntimeError(
+                'impossible to find autocomplete {} for instance {}'.format(self.autocomplete_backend, self.name)
+            )
+        return backend
+
+    def stop_point_fallbacks(self):
+        return [a for a in global_autocomplete.values() if a.is_handling_stop_points()]
 
     def get_models(self):
         if self.name not in g.instances_model:
@@ -145,7 +230,8 @@ class Instance(object):
     def __repr__(self):
         return 'instance.{}'.format(self.name)
 
-    @cache.memoize(app.config['CACHE_CONFIGURATION'].get('TIMEOUT_PARAMS', 300))
+    @memory_cache.memoize(app.config[str('MEMORY_CACHE_CONFIGURATION')].get(str('TIMEOUT_PARAMS'), 30))
+    @cache.memoize(app.config[str('CACHE_CONFIGURATION')].get(str('TIMEOUT_PARAMS'), 300))
     def _get_models(self):
         if app.config['DISABLE_DATABASE']:
             return None
@@ -186,147 +272,145 @@ class Instance(object):
             module = import_module('jormungandr.scenarios.{}'.format(scenario_name))
             self._scenario = module.Scenario()
 
-        #we save the used scenario for future use
+        # we save the used scenario for future use
         g.scenario = self._scenario
         return self._scenario
 
     @property
     def journey_order(self):
+        # type: () -> Text
         instance_db = self.get_models()
         return get_value_or_default('journey_order', instance_db, self.name)
 
     @property
+    def autocomplete_backend(self):
+        # type: () -> Text
+        instance_db = self.get_models()
+        return get_value_or_default('autocomplete_backend', instance_db, self.name)
+
+    @property
     def max_walking_duration_to_pt(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('max_walking_duration_to_pt', instance_db, self.name)
 
     @property
     def max_bss_duration_to_pt(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('max_bss_duration_to_pt', instance_db, self.name)
 
     @property
     def max_bike_duration_to_pt(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('max_bike_duration_to_pt', instance_db, self.name)
 
     @property
     def max_car_duration_to_pt(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('max_car_duration_to_pt', instance_db, self.name)
 
     @property
     def max_car_no_park_duration_to_pt(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('max_car_no_park_duration_to_pt', instance_db, self.name)
 
     @property
     def walking_speed(self):
+        # type: () -> float
         instance_db = self.get_models()
         return get_value_or_default('walking_speed', instance_db, self.name)
 
     @property
     def bss_speed(self):
+        # type: () -> float
         instance_db = self.get_models()
         return get_value_or_default('bss_speed', instance_db, self.name)
 
     @property
     def bike_speed(self):
+        # type: () -> float
         instance_db = self.get_models()
         return get_value_or_default('bike_speed', instance_db, self.name)
 
     @property
     def car_speed(self):
+        # type: () -> float
         instance_db = self.get_models()
         return get_value_or_default('car_speed', instance_db, self.name)
 
     @property
     def car_no_park_speed(self):
+        # type: () -> float
         instance_db = self.get_models()
         return get_value_or_default('car_no_park_speed', instance_db, self.name)
 
     @property
     def max_nb_transfers(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('max_nb_transfers', instance_db, self.name)
 
     @property
-    def min_tc_with_car(self):
-        instance_db = self.get_models()
-        return get_value_or_default('min_tc_with_car', instance_db, self.name)
-
-    @property
-    def min_tc_with_bike(self):
-        instance_db = self.get_models()
-        return get_value_or_default('min_tc_with_bike', instance_db, self.name)
-
-    @property
-    def min_tc_with_bss(self):
-        instance_db = self.get_models()
-        return get_value_or_default('min_tc_with_bss', instance_db, self.name)
-
-    @property
     def min_bike(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('min_bike', instance_db, self.name)
 
     @property
     def min_bss(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('min_bss', instance_db, self.name)
 
     @property
     def min_car(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('min_car', instance_db, self.name)
 
     @property
-    def factor_too_long_journey(self):
+    def min_taxi(self):
+        # type: () -> int
         instance_db = self.get_models()
-        return get_value_or_default('factor_too_long_journey', instance_db, self.name)
+        return get_value_or_default('min_taxi', instance_db, self.name)
 
     @property
     def successive_physical_mode_to_limit_id(self):
+        # type: () -> Text
         instance_db = self.get_models()
         return get_value_or_default('successive_physical_mode_to_limit_id', instance_db, self.name)
 
     @property
-    def min_duration_too_long_journey(self):
-        instance_db = self.get_models()
-        return get_value_or_default('min_duration_too_long_journey', instance_db, self.name)
-
-    @property
-    def max_duration_criteria(self):
-        instance_db = self.get_models()
-        return get_value_or_default('max_duration_criteria', instance_db, self.name)
-
-    @property
-    def max_duration_fallback_mode(self):
-        instance_db = self.get_models()
-        return get_value_or_default('max_duration_fallback_mode', instance_db, self.name)
-
-    @property
     def priority(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('priority', instance_db, self.name)
 
     @property
     def bss_provider(self):
+        # type: () -> bool
         instance_db = self.get_models()
         return get_value_or_default('bss_provider', instance_db, self.name)
 
     @property
     def car_park_provider(self):
+        # type: () -> bool
         instance_db = self.get_models()
         return get_value_or_default('car_park_provider', instance_db, self.name)
 
     @property
     def max_additional_connections(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('max_additional_connections', instance_db, self.name)
 
     @property
     def is_free(self):
+        # type: () -> bool
         instance_db = self.get_models()
         if not instance_db:
             return False
@@ -335,6 +419,7 @@ class Instance(object):
 
     @property
     def is_open_data(self):
+        # type: () -> bool
         instance_db = self.get_models()
         if not instance_db:
             return False
@@ -343,46 +428,55 @@ class Instance(object):
 
     @property
     def max_duration(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('max_duration', instance_db, self.name)
 
     @property
     def walking_transfer_penalty(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('walking_transfer_penalty', instance_db, self.name)
 
     @property
     def night_bus_filter_max_factor(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('night_bus_filter_max_factor', instance_db, self.name)
 
     @property
     def night_bus_filter_base_factor(self):
+        # type: () -> float
         instance_db = self.get_models()
         return get_value_or_default('night_bus_filter_base_factor', instance_db, self.name)
 
     @property
     def realtime_pool_size(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('realtime_pool_size', instance_db, self.name)
 
     @property
     def min_nb_journeys(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('min_nb_journeys', instance_db, self.name)
 
     @property
     def max_nb_journeys(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('max_nb_journeys', instance_db, self.name)
 
     @property
     def min_journeys_calls(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('min_journeys_calls', instance_db, self.name)
 
     @property
     def max_successive_physical_mode(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('max_successive_physical_mode', instance_db, self.name)
 
@@ -393,31 +487,68 @@ class Instance(object):
 
     @property
     def max_extra_second_pass(self):
+        # type: () -> int
         instance_db = self.get_models()
         return get_value_or_default('max_extra_second_pass', instance_db, self.name)
+
+    @property
+    def max_nb_crowfly_by_mode(self):
+        # type: () -> Dict[Text, int]
+        instance_db = self.get_models()
+        # the value by default is a dict...
+        d = copy.deepcopy(get_value_or_default('max_nb_crowfly_by_mode', instance_db, self.name))
+        # In case we add a new max_nb_crowfly for an other mode than
+        # the ones already present in the database.
+        for mode, duration in default_values.max_nb_crowfly_by_mode.items():
+            if mode not in d:
+                d[mode] = duration
+
+        return d
+
+    # TODO: refactorise all properties
+    taxi_speed = _make_property_getter('taxi_speed')
+    additional_time_after_first_section_taxi = _make_property_getter('additional_time_after_first_section_taxi')
+    additional_time_before_last_section_taxi = _make_property_getter('additional_time_before_last_section_taxi')
+
+    max_walking_direct_path_duration = _make_property_getter('max_walking_direct_path_duration')
+    max_bike_direct_path_duration = _make_property_getter('max_bike_direct_path_duration')
+    max_bss_direct_path_duration = _make_property_getter('max_bss_direct_path_duration')
+    max_car_direct_path_duration = _make_property_getter('max_car_direct_path_duration')
+    max_taxi_direct_path_duration = _make_property_getter('max_taxi_direct_path_duration')
+    max_ridesharing_direct_path_duration = _make_property_getter('max_ridesharing_direct_path_duration')
+
+    def reap_socket(self, ttl):
+        # type: (int) -> None
+        if self.zmq_socket_type != 'transient':
+            return
+        logger = logging.getLogger(__name__)
+        now = time.time()
+        while True:
+            try:
+                socket, t = self._sockets.popleft()
+                if now - t > ttl:
+                    logger.debug("closing one socket for %s", self.name)
+                    socket.setsockopt(zmq.LINGER, 0)
+                    socket.close()
+                else:
+                    self._sockets.appendleft((socket, t))
+                    break  # remaining socket are still in "keep alive" state
+            except IndexError:
+                break
 
     @contextmanager
     def socket(self, context):
         socket = None
-        if self.zmq_socket_type == 'transient':
+        try:
+            socket, _ = self._sockets.pop()
+        except IndexError:  # there is no socket available: lets create one
             socket = context.socket(zmq.REQ)
             socket.connect(self.socket_path)
-            try:
-                yield socket
-            finally:
-                if not socket.closed:
-                    socket.close()
-        else:
-            try:
-                socket = self._sockets.get(block=False)
-            except queue.Empty:
-                socket = context.socket(zmq.REQ)
-                socket.connect(self.socket_path)
-            try:
-                yield socket
-            finally:
-                if not socket.closed:
-                    self._sockets.put(socket)
+        try:
+            yield socket
+        finally:
+            if not socket.closed:
+                self._sockets.append((socket, time.time()))
 
     def send_and_receive(self, *args, **kwargs):
         """
@@ -428,12 +559,12 @@ class Instance(object):
         except pybreaker.CircuitBreakerError as e:
             raise DeadSocketException(self.name, self.socket_path)
 
-    def _send_and_receive(self,
-                         request,
-                         timeout=app.config.get('INSTANCE_TIMEOUT', 10000),
-                         quiet=False,
-                         **kwargs):
+    def _send_and_receive(
+        self, request, timeout=app.config.get('INSTANCE_TIMEOUT', 10000), quiet=False, **kwargs
+    ):
         logger = logging.getLogger(__name__)
+        deadline = datetime.utcnow() + timedelta(milliseconds=timeout)
+        request.deadline = deadline.strftime('%Y%m%dT%H%M%S,%f')
         with self.socket(self.context) as socket:
             try:
                 request.request_id = flask.request.id
@@ -447,7 +578,7 @@ class Instance(object):
                 pb = socket.recv()
                 resp = response_pb2.Response()
                 resp.ParseFromString(pb)
-                self.update_property(resp)#we update the timezone and geom of the instances at each request
+                self.update_property(resp)  # we update the timezone and geom of the instances at each request
                 return resp
             else:
                 socket.setsockopt(zmq.LINGER, 0)
@@ -482,6 +613,9 @@ class Instance(object):
             return self.geom and self.geom.contains(p)
         except DeadSocketException:
             return False
+        except PredicateError:
+            logging.getLogger(__name__).exception("has_coord failed")
+            return False
 
     def get_external_codes(self, type_, id_):
         """
@@ -494,7 +628,7 @@ class Instance(object):
         req.place_code.type = type_to_pttype[type_]
         req.place_code.type_code = "external_code"
         req.place_code.code = id_
-        #we set the timeout to 1s
+        # we set the timeout to 1s
         return self.send_and_receive(req, timeout=app.config.get('INSTANCE_FAST_TIMEOUT', 1000))
 
     def has_external_code(self, type_, id_):
@@ -514,7 +648,7 @@ class Instance(object):
         """
         update the property of an instance from a response if the metadatas field if present
         """
-        #after a successful call we consider the instance initialised even if no data were loaded
+        # after a successful call we consider the instance initialised even if no data were loaded
         self.is_initialized = True
         if response.HasField(str("metadatas")) and response.publication_date != self.publication_date:
             logging.getLogger(__name__).debug('updating metadata for %s', self.name)
@@ -539,9 +673,9 @@ class Instance(object):
         req = request_pb2.Request()
         req.requested_api = type_pb2.METADATAS
         try:
-            #we use _send_and_receive to avoid the circuit breaker, we don't want fast fail on init :)
+            # we use _send_and_receive to avoid the circuit breaker, we don't want fast fail on init :)
             resp = self._send_and_receive(req, timeout=1000, quiet=True)
-            #the instance is automatically updated on a call
+            # the instance is automatically updated on a call
             if self.publication_date != pub_date:
                 return True
         except DeadSocketException:
@@ -553,41 +687,44 @@ class Instance(object):
     def get_street_network(self, mode, request):
         overriden_sn_id = request.get('_street_network')
         if overriden_sn_id:
+
             def predicate(s):
                 return s.sn_system_id == overriden_sn_id
+
         else:
+
             def predicate(s):
                 return mode in s.modes
+
         sn = next((s for s in self.street_network_services if predicate(s)), None)
         if sn is None:
-            raise TechnicalError('impossible to find a streetnetwork module for {} ({})'.format(
-                mode, overriden_sn_id))
+            raise TechnicalError(
+                'impossible to find a streetnetwork module for {} ({})'.format(mode, overriden_sn_id)
+            )
         return sn
 
-    def get_street_network_routing_matrix(self, origins, destinations, mode, max_duration_to_pt, request, **kwargs):
+    def get_street_network_routing_matrix(
+        self, origins, destinations, mode, max_duration_to_pt, request, **kwargs
+    ):
         service = self.get_street_network(mode, request)
         if not service:
             return None
-        return service.get_street_network_routing_matrix(origins,
-                                                         destinations,
-                                                         mode,
-                                                         max_duration_to_pt,
-                                                         request,
-                                                         **kwargs)
+        return service.get_street_network_routing_matrix(
+            origins, destinations, mode, max_duration_to_pt, request, **kwargs
+        )
 
-    def direct_path(self, mode, pt_object_origin, pt_object_destination, fallback_extremity, request, direct_path_type):
+    def direct_path(
+        self, mode, pt_object_origin, pt_object_destination, fallback_extremity, request, direct_path_type
+    ):
         """
         :param fallback_extremity: is a PeriodExtremity (a datetime and its meaning on the fallback period)
         """
         service = self.get_street_network(mode, request)
         if not service:
             return None
-        return service.direct_path_with_fp(mode,
-                                           pt_object_origin,
-                                           pt_object_destination,
-                                           fallback_extremity,
-                                           request,
-                                           direct_path_type)
+        return service.direct_path_with_fp(
+            mode, pt_object_origin, pt_object_destination, fallback_extremity, request, direct_path_type
+        )
 
     def get_autocomplete(self, requested_autocomplete):
         if not requested_autocomplete:
@@ -601,7 +738,9 @@ class Instance(object):
         res = []
         fps = set()
         for service in self.ridesharing_services:
-            rsjs, fp = service.request_journeys_with_feed_publisher(from_coord, to_coord, period_extremity, limit)
+            rsjs, fp = service.request_journeys_with_feed_publisher(
+                from_coord, to_coord, period_extremity, limit
+            )
             res.extend(rsjs)
             fps.add(fp)
         return res, fps

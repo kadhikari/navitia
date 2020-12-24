@@ -31,39 +31,15 @@ from __future__ import absolute_import
 import mock
 from mock import PropertyMock
 
-from jormungandr.parking_space_availability import AbstractParkingPlacesProvider
-from jormungandr.parking_space_availability import Stands
-from jormungandr.parking_space_availability import get_from_to_pois_of_journeys
+from jormungandr.parking_space_availability import (
+    AbstractParkingPlacesProvider,
+    Stands,
+    StandsStatus,
+    get_from_to_pois_of_journeys,
+)
 from jormungandr.ptref import FeedPublisher
 from tests.check_utils import is_valid_poi, get_not_null, journey_basic_query
-from tests.tests_mechanism import AbstractTestFixture, dataset
-
-
-class MockBssProvider(AbstractParkingPlacesProvider):
-    def __init__(self, pois_supported, name='mock bss provider'):
-        self.pois_supported = pois_supported
-        self.name = name
-
-    def support_poi(self, poi):
-        return not self.pois_supported or poi['id'] in self.pois_supported
-
-    def get_informations(self, poi):
-        available_places = 13 if poi['id'] == 'poi:station_1' else 99
-        available_bikes = 3 if poi['id'] == 'poi:station_1' else 98
-        return Stands(available_places=available_places, available_bikes=available_bikes, status='OPEN')
-
-    def status(self):
-        return {}
-
-    def feed_publisher(self):
-        return FeedPublisher(id='mock_bss', name=self.name, license='the death license',
-                             url='bob.com')
-
-
-def mock_bss_providers(pois_supported):
-    providers = [MockBssProvider(pois_supported=pois_supported)]
-    return mock.patch('jormungandr.parking_space_availability.bss.BssProviderManager._get_providers',
-                      new_callable=PropertyMock, return_value=lambda: providers)
+from tests.tests_mechanism import AbstractTestFixture, dataset, mock_bss_providers, MockBssProvider
 
 
 @dataset({"main_routing_test": {}})
@@ -80,7 +56,6 @@ class TestBssProvider(AbstractTestFixture):
         - places (reason: due to performance aim in autocompletion)
     """
 
-
     ############################
     #####
     ##### API: pois
@@ -93,18 +68,27 @@ class TestBssProvider(AbstractTestFixture):
             r = self.query_region('pois', display=False)
 
             pois = get_not_null(r, 'pois')
-            assert {p['id'] for p in pois} == {'poi:station_1', 'poi:station_2', 'poi:parking_1', 'poi:parking_2'}
+            assert {p['id'] for p in pois} == {
+                'poi:station_1',
+                'poi:station_2',
+                'poi:parking_1',
+                'poi:parking_2',
+            }
             for p in pois:
                 is_valid_poi(p)
                 assert not 'stands' in p
-
 
     def test_pois_with_stands_on_first_of_pois(self):
         with mock_bss_providers(pois_supported=['poi:station_1']):
             r = self.query_region('pois', display=False)
 
             pois = get_not_null(r, 'pois')
-            assert {p['id'] for p in pois} == {'poi:station_1', 'poi:station_2', 'poi:parking_1', 'poi:parking_2'}
+            assert {p['id'] for p in pois} == {
+                'poi:station_1',
+                'poi:station_2',
+                'poi:parking_1',
+                'poi:parking_2',
+            }
             for p in pois:
                 is_valid_poi(p)
                 if p['id'] == 'poi:station_1':
@@ -122,7 +106,12 @@ class TestBssProvider(AbstractTestFixture):
             r = self.query_region('pois', display=False)
 
             pois = get_not_null(r, 'pois')
-            assert {p['id'] for p in pois} == {'poi:station_1', 'poi:station_2', 'poi:parking_1', 'poi:parking_2'}
+            assert {p['id'] for p in pois} == {
+                'poi:station_1',
+                'poi:station_2',
+                'poi:parking_1',
+                'poi:parking_2',
+            }
             for p in pois:
                 is_valid_poi(p)
                 if p['id'] == 'poi:station_1' or p['id'] == 'poi:station_2':
@@ -140,7 +129,6 @@ class TestBssProvider(AbstractTestFixture):
                         assert stands['status'] == 'open'
                 else:
                     assert not 'stands' in p
-
 
     ############################
     #####
@@ -203,7 +191,6 @@ class TestBssProvider(AbstractTestFixture):
             is_valid_poi(poi)
             assert not 'stands' in poi
 
-
     ############################
     #####
     ##### API: places/<place_id>
@@ -265,7 +252,6 @@ class TestBssProvider(AbstractTestFixture):
             is_valid_poi(poi)
             assert not 'stands' in poi
 
-
     ############################
     #####
     ##### API: places/<place_id>/places_nearby
@@ -278,10 +264,19 @@ class TestBssProvider(AbstractTestFixture):
             r = self.query_region("places/admin:74435/places_nearby?count=20", display=False)
 
             places_nearby = get_not_null(r, 'places_nearby')
-            assert {p[p['embedded_type']]['id'] for p in places_nearby} == \
-                {'poi:parking_1', 'poi:station_1', 'stop_point:stopB', 'stopB', 'poi:station_2',
-                 'poi:parking_2', 'stopC', 'stop_point:stopC',
-                 'stopA', 'stop_point:stopA', 'stop_point:uselessA'}
+            assert {p[p['embedded_type']]['id'] for p in places_nearby} == {
+                'poi:parking_1',
+                'poi:station_1',
+                'stop_point:stopB',
+                'stopB',
+                'poi:station_2',
+                'poi:parking_2',
+                'stopC',
+                'stop_point:stopC',
+                'stopA',
+                'stop_point:stopA',
+                'stop_point:uselessA',
+            }
             for p in places_nearby:
                 embedded_type = p['embedded_type']
                 if embedded_type == 'poi':
@@ -293,10 +288,19 @@ class TestBssProvider(AbstractTestFixture):
             r = self.query_region('places/admin:74435/places_nearby?count=20', display=False)
 
             places_nearby = get_not_null(r, 'places_nearby')
-            assert {p[p['embedded_type']]['id'] for p in places_nearby} == \
-                {'poi:parking_1', 'poi:station_1', 'stop_point:stopB', 'stopB', 'poi:station_2',
-                 'poi:parking_2', 'stopC', 'stop_point:stopC',
-                 'stopA', 'stop_point:stopA', 'stop_point:uselessA'}
+            assert {p[p['embedded_type']]['id'] for p in places_nearby} == {
+                'poi:parking_1',
+                'poi:station_1',
+                'stop_point:stopB',
+                'stopB',
+                'poi:station_2',
+                'poi:parking_2',
+                'stopC',
+                'stop_point:stopC',
+                'stopA',
+                'stop_point:stopA',
+                'stop_point:uselessA',
+            }
             for p in places_nearby:
                 embedded_type = p['embedded_type']
                 if embedded_type == 'poi':
@@ -318,10 +322,19 @@ class TestBssProvider(AbstractTestFixture):
             r = self.query_region('places/admin:74435/places_nearby?count=20', display=False)
 
             places_nearby = get_not_null(r, 'places_nearby')
-            assert {p[p['embedded_type']]['id'] for p in places_nearby} == \
-                {'poi:parking_1', 'poi:station_1', 'stop_point:stopB', 'stopB', 'poi:station_2',
-                 'poi:parking_2', 'stopC', 'stop_point:stopC',
-                 'stopA', 'stop_point:stopA', 'stop_point:uselessA'}
+            assert {p[p['embedded_type']]['id'] for p in places_nearby} == {
+                'poi:parking_1',
+                'poi:station_1',
+                'stop_point:stopB',
+                'stopB',
+                'poi:station_2',
+                'poi:parking_2',
+                'stopC',
+                'stop_point:stopC',
+                'stopA',
+                'stop_point:stopA',
+                'stop_point:uselessA',
+            }
             for p in places_nearby:
                 embedded_type = p['embedded_type']
                 if embedded_type == 'poi':
@@ -353,12 +366,19 @@ class TestBssProvider(AbstractTestFixture):
             r = self.query_region('places/admin:74435/places_nearby?depth=0&count=20', display=False)
 
             places_nearby = get_not_null(r, 'places_nearby')
-            assert {p[p['embedded_type']]['id'] for p in places_nearby} == \
-                {'poi:parking_1', 'poi:station_1', 'stop_point:stopB', 'stopB', 'poi:station_2',
-                 'poi:parking_2', 'stopC', 'stop_point:stopC',
-                 'stopA', 'stop_point:stopA', 'stop_point:uselessA'}
-
-
+            assert {p[p['embedded_type']]['id'] for p in places_nearby} == {
+                'poi:parking_1',
+                'poi:station_1',
+                'stop_point:stopB',
+                'stopB',
+                'poi:station_2',
+                'poi:parking_2',
+                'stopC',
+                'stop_point:stopC',
+                'stopA',
+                'stop_point:stopA',
+                'stop_point:uselessA',
+            }
 
     ############################
     #####
@@ -366,7 +386,6 @@ class TestBssProvider(AbstractTestFixture):
     ##### BSS support: No
     #####
     ############################
-
 
     def test_pois_without_stands_on_places_autocompletion(self):
         with mock_bss_providers(pois_supported=[]):
@@ -406,7 +425,9 @@ class TestBssProvider(AbstractTestFixture):
     def test_journey_sections_from_to_poi_with_stands(self):
         supported_pois = ['poi:station_1']
         with mock_bss_providers(pois_supported=supported_pois):
-            query = journey_basic_query + "&first_section_mode=bss&last_section_mode=bss&add_poi_infos[]=bss_stands"
+            query = (
+                journey_basic_query + "&first_section_mode=bss&last_section_mode=bss&add_poi_infos[]=bss_stands"
+            )
             response = self.query_region(query)
             self.is_valid_journey_response(response, query)
             journeys = get_not_null(response, 'journeys')
@@ -445,11 +466,18 @@ class TestBssProvider(AbstractTestFixture):
         """
         each poi is handled by a different bss provider, we should find both providers in the feed publishers
         """
-        providers = [MockBssProvider(pois_supported='poi:station_1', name='provider 1'),
-                     MockBssProvider(pois_supported='poi:station_2', name='provider 2')]
-        with mock.patch('jormungandr.parking_space_availability.bss.BssProviderManager._get_providers',
-                        new_callable=PropertyMock, return_value=lambda: providers):
-            query = journey_basic_query + "&first_section_mode=bss&last_section_mode=bss&add_poi_infos[]=bss_stands"
+        providers = [
+            MockBssProvider(pois_supported='poi:station_1', name='provider 1'),
+            MockBssProvider(pois_supported='poi:station_2', name='provider 2'),
+        ]
+        with mock.patch(
+            'jormungandr.parking_space_availability.bss.BssProviderManager._get_providers',
+            new_callable=PropertyMock,
+            return_value=lambda: providers,
+        ):
+            query = (
+                journey_basic_query + "&first_section_mode=bss&last_section_mode=bss&add_poi_infos[]=bss_stands"
+            )
             response = self.query_region(query)
             self.is_valid_journey_response(response, query)
 
@@ -478,4 +506,3 @@ class TestBssProvider(AbstractTestFixture):
                 'license': 'the death license',
                 'url': 'bob.com',
             }
-

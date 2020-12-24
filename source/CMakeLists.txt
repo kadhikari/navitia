@@ -24,6 +24,7 @@ project(Kraken)
 
 # List of directories to search for CMake modules
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake_modules")
+set(CMAKE_INSTALL_PREFIX "/usr")
 
 # project version,
 # get git revision as the version number
@@ -72,8 +73,8 @@ add_subdirectory(calendar)
 add_subdirectory(tests)
 add_subdirectory(scripts)
 add_subdirectory(cities)
-add_library(linenoise linenoise/linenoise.c)
 add_subdirectory(tools)
+add_subdirectory(equipment)
 
 include(CheckIncludeFiles)
 include(CheckIncludeFileCXX)

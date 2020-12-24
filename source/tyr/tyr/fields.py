@@ -40,6 +40,14 @@ class FieldDate(fields.Raw):
             return 'null'
 
 
+class FieldTimedelta(fields.Raw):
+    def format(self, value):
+        if value:
+            return value.total_seconds()
+        else:
+            return 'null'
+
+
 class HasShape(fields.Raw):
     def output(self, key, obj):
         return obj.has_shape()
@@ -66,15 +74,20 @@ end_point_fields = {
     'id': fields.Raw,
     'name': fields.Raw,
     'default': fields.Raw,
-    'hostnames': fields.List(fields.String)
+    'hostnames': fields.List(fields.String),
 }
 
-key_fields = {
+key_fields = {'id': fields.Raw, 'app_name': fields.Raw, 'token': fields.Raw, 'valid_until': FieldDate}
+
+equipment_provider_fields = {
     'id': fields.Raw,
-    'app_name': fields.Raw,
-    'token': fields.Raw,
-    'valid_until': FieldDate
+    'klass': fields.Raw,
+    'args': fields.Raw,
+    'created_at': FieldDate,
+    'updated_at': FieldDate,
+    'discarded': fields.Raw,
 }
+equipment_provider_list_fields = {'equipments_providers': fields.List(fields.Nested(equipment_provider_fields))}
 
 instance_fields = {
     'id': fields.Raw,
@@ -83,6 +96,7 @@ instance_fields = {
     'is_free': fields.Raw,
     'import_stops_in_mimir': fields.Raw,
     'import_ntfs_in_mimir': fields.Raw,
+    'admins_from_cities_db': fields.Raw,
     'scenario': fields.Raw,
     'journey_order': fields.Raw,
     'max_walking_duration_to_pt': fields.Raw,
@@ -96,9 +110,11 @@ instance_fields = {
     'bss_speed': fields.Raw,
     'car_speed': fields.Raw,
     'car_no_park_speed': fields.Raw,
+    'taxi_speed': fields.Raw,
     'min_bike': fields.Raw,
     'min_bss': fields.Raw,
     'min_car': fields.Raw,
+    'min_taxi': fields.Raw,
     'min_tc_with_bike': fields.Raw,
     'min_tc_with_bss': fields.Raw,
     'min_tc_with_car': fields.Raw,
@@ -118,13 +134,18 @@ instance_fields = {
     'min_journeys_calls': fields.Raw,
     'max_successive_physical_mode': fields.Raw,
     'final_line_filter': fields.Boolean,
-    'max_extra_second_pass': fields.Raw
+    'max_extra_second_pass': fields.Raw,
+    'max_nb_crowfly_by_mode': fields.Raw,
+    'autocomplete_backend': fields.Raw,
+    'additional_time_after_first_section_taxi': fields.Raw,
+    'additional_time_before_last_section_taxi': fields.Raw,
+    'max_additional_connections': fields.Raw,
+    'successive_physical_mode_to_limit_id': fields.Raw,
+    'car_park_provider': fields.Raw,
+    'equipment_details_providers': fields.Nested(equipment_provider_fields),
 }
 
-api_fields = {
-    'id': fields.Raw,
-    'name': fields.Raw
-}
+api_fields = {'id': fields.Raw, 'name': fields.Raw}
 
 billing_plan_fields = {
     'id': fields.Raw,
@@ -140,7 +161,7 @@ billing_plan_fields_full = {
     'max_request_count': fields.Raw,
     'max_object_count': fields.Raw,
     'default': fields.Raw,
-    'end_point': fields.Nested(end_point_fields)
+    'end_point': fields.Nested(end_point_fields),
 }
 
 user_fields = {
@@ -163,10 +184,9 @@ user_fields_full = {
     'block_until': FieldDate,
     'type': fields.Raw(),
     'keys': fields.List(fields.Nested(key_fields)),
-    'authorizations': fields.List(fields.Nested({
-        'instance': fields.Nested(instance_fields),
-        'api': fields.Nested(api_fields)
-    })),
+    'authorizations': fields.List(
+        fields.Nested({'instance': fields.Nested(instance_fields), 'api': fields.Nested(api_fields)})
+    ),
     'end_point': fields.Nested(end_point_fields),
     'billing_plan': fields.Nested(billing_plan_fields),
     'has_shape': HasShape,
@@ -174,11 +194,7 @@ user_fields_full = {
     'default_coord': fields.Raw,
 }
 
-dataset_field = {
-    'type': fields.Raw,
-    'name': fields.Raw,
-    'family_type': fields.Raw,
-}
+dataset_field = {'type': fields.Raw, 'name': fields.Raw, 'family_type': fields.Raw}
 
 job_fields = {
     'id': fields.Raw,
@@ -186,23 +202,14 @@ job_fields = {
     'created_at': FieldDate,
     'updated_at': FieldDate,
     'data_sets': fields.List(fields.Nested(dataset_field)),
-    'instance': fields.Nested(instance_fields)
+    'instance': fields.Nested(instance_fields),
 }
 
-jobs_fields = {
-    'jobs': fields.List(fields.Nested(job_fields))
-}
+jobs_fields = {'jobs': fields.List(fields.Nested(job_fields))}
 
-one_job_fields = {
-    'job': fields.Nested(job_fields)
-}
+one_job_fields = {'job': fields.Nested(job_fields)}
 
-poi_types_fields = {
-    'poi_types': fields.List(fields.Nested({
-        'uri': fields.Raw,
-        'name': fields.Raw,
-    }))
-}
+poi_types_fields = {'poi_types': fields.List(fields.Nested({'uri': fields.Raw, 'name': fields.Raw}))}
 
 traveler_profile = {
     'traveler_type': fields.String,
@@ -232,6 +239,17 @@ autocomplete_parameter_fields = {
     'admin_level': fields.List(fields.Integer),
 }
 
-error_fields = {
-    'error': fields.Nested({'message': fields.String})
+error_fields = {'error': fields.Nested({'message': fields.String})}
+
+
+bss_provider_fields = {
+    'id': fields.Raw,
+    'network': fields.Raw,
+    'klass': fields.Raw,
+    'args': fields.Raw,
+    'timeout': FieldTimedelta,
+    'created_at': FieldDate,
+    'updated_at': FieldDate,
+    'discarded': fields.Raw,
 }
+bss_provider_list_fields = {'bss_providers': fields.List(fields.Nested(bss_provider_fields))}

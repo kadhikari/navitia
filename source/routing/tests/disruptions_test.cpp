@@ -1,28 +1,28 @@
 /* Copyright © 2001-2014, Canal TP and/or its affiliates. All rights reserved.
-  
+
 This file is part of Navitia,
     the software to build cool stuff with public transport.
- 
+
 Hope you'll enjoy and contribute to this project,
     powered by Canal TP (www.canaltp.fr).
 Help us simplify mobility and open public transport:
     a non ending quest to the responsive locomotion way of traveling!
-  
+
 LICENCE: This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
-   
+
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Affero General Public License for more details.
-   
+
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
-  
+
 Stay tuned using
-twitter @navitia 
+twitter @navitia
 IRC #navitia on freenode
 https://groups.google.com/d/forum/navitia
 www.navitia.io
@@ -37,10 +37,9 @@ www.navitia.io
 #include "kraken/worker.h"
 
 struct logger_initialized {
-    logger_initialized()   { init_logger(); }
+    logger_initialized() { navitia::init_logger(); }
 };
-BOOST_GLOBAL_FIXTURE( logger_initialized );
-
+BOOST_GLOBAL_FIXTURE(logger_initialized);
 
 BOOST_AUTO_TEST_CASE(ok_before_and_after_disruption) {
     routing_api_data<normal_speed_provider> data;
@@ -62,12 +61,12 @@ BOOST_AUTO_TEST_CASE(ok_before_and_after_disruption) {
     j->mutable_streetnetwork_params()->set_origin_mode("walking");
     j->mutable_streetnetwork_params()->set_destination_mode("walking");
     j->mutable_streetnetwork_params()->set_walking_speed(1.14);
-    j->mutable_streetnetwork_params()->set_max_walking_duration_to_pt(15*60);
+    j->mutable_streetnetwork_params()->set_max_walking_duration_to_pt(15 * 60);
     pbnavitia::LocationContext* from = j->add_origin();
-    from->set_place("coord:0.0000898312;0.0000898312");// coord of S
+    from->set_place("coord:0.0000898312;0.0000898312");  // coord of S
     from->set_access_duration(0);
     pbnavitia::LocationContext* to = j->add_destination();
-    to->set_place("coord:0.00188646;0.00071865");// coord of R
+    to->set_place("coord:0.00188646;0.00071865");  // coord of R
     to->set_access_duration(0);
 
     // we ask for a journey

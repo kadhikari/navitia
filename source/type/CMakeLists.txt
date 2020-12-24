@@ -92,9 +92,12 @@ endif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
 SET_SOURCE_FILES_PROPERTIES(${PROTO_SRCS} PROPERTIES COMPILE_FLAGS ${PROTO_CMAKE_CXX_FLAGS})
 
 add_library(pb_lib ${PROTO_SRCS} pb_converter.cpp)
-target_link_libraries(pb_lib thermometer vptranslator pthread ${PROTOBUF_LIBRARY} tcmalloc)
+target_link_libraries(pb_lib thermometer vptranslator pthread ${PROTOBUF_LIBRARY})
 
-add_library(types type.cpp message.cpp datetime.cpp geographical_coord.cpp timezone_manager.cpp validity_pattern.cpp type_utils.cpp)
+add_library(types type.cpp message.cpp datetime.cpp geographical_coord.cpp timezone_manager.cpp
+    validity_pattern.cpp type_utils.cpp stop_point.cpp connection.cpp calendar.cpp stop_area.cpp network.cpp
+    contributor.cpp dataset.cpp company.cpp commercial_mode.cpp physical_mode.cpp line.cpp route.cpp
+    vehicle_journey.cpp stop_time.cpp type_interfaces.cpp comment_container.cpp odt_properties.cpp)
 target_link_libraries(types ptreferential utils pb_lib protobuf)
 add_dependencies(types protobuf_files)
 
@@ -115,6 +118,7 @@ SET(BOOST_DEV_LIBS ${BOOST_LIBS} ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY})
 add_library(data ${DATA_SRC})
 target_link_libraries(data types fill_disruption_from_database fare routing autocomplete ${BOOST_LIBS})
 
+# >>>>> Tests <<<<<
 
 add_executable(fill_pb_placemark_test tests/fill_pb_placemark_test.cpp)
 target_link_libraries(fill_pb_placemark_test ed data types routing fare georef autocomplete utils ${BOOST_DEV_LIBS} log4cplus pb_lib thermometer protobuf)

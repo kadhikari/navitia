@@ -32,7 +32,6 @@ www.navitia.io
 #include "time_tables/tests/departure_board_test_data.h"
 #include "mock_kraken.h"
 
-
 /*
  * tests for departure board.
  *
@@ -43,8 +42,7 @@ int main(int argc, const char* const argv[]) {
 
     calendar_fixture data_set;
 
-    mock_kraken kraken(data_set.b, "departure_board_test", argc, argv);
+    mock_kraken kraken(data_set.b, argc, argv);
 
     return 0;
 }
-

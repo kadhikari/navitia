@@ -27,10 +27,12 @@
 # https://groups.google.com/d/forum/navitia
 # www.navitia.io
 from __future__ import absolute_import
+
+import jormungandr.street_network.utils
 from . import helper_future
 from jormungandr.street_network.street_network import StreetNetworkPathType
 from .helper_utils import get_max_fallback_duration
-from jormungandr import utils
+from jormungandr import utils, new_relic
 import logging
 
 
@@ -38,26 +40,35 @@ class ProximitiesByCrowfly:
     """
     A ProximitiesByCrowfly is a set of stop_points that are accessible by crowfly within a time of 'max_duration'.
     """
-    def __init__(self, future_manager, instance, requested_place_obj, mode, max_duration, max_nb_crowfly=5000):
+
+    def __init__(
+        self, future_manager, instance, requested_place_obj, mode, max_duration, max_nb_crowfly, request
+    ):
         self._future_manager = future_manager
         self._instance = instance
         self._requested_place_obj = requested_place_obj
         self._mode = mode
         self._max_duration = max_duration
         self._max_nb_crowfly = max_nb_crowfly
-        self._speed_switcher = {
-            "walking": instance.walking_speed,
-            "bike": instance.bike_speed,
-            "car": instance.car_speed,
-            "bss": instance.bss_speed,
-            "ridesharing": instance.car_no_park_speed,
-        }
+        self._speed_switcher = jormungandr.street_network.utils.make_speed_switcher(request)
         self._value = None
         self._async_request()
 
+    @new_relic.distributedEvent("direct_path", "street_network")
+    def _get_crow_fly(self):
+        return self._instance.georef.get_crow_fly(
+            utils.get_uri_pt_object(self._requested_place_obj),
+            self._mode,
+            self._max_duration,
+            self._max_nb_crowfly,
+            **self._speed_switcher
+        )
+
     def _do_request(self):
         logger = logging.getLogger(__name__)
-        logger.debug("requesting proximities by crowfly from %s in %s", self._requested_place_obj.uri, self._mode)
+        logger.debug(
+            "requesting proximities by crowfly from %s in %s", self._requested_place_obj.uri, self._mode
+        )
 
         # When max_duration_to_pt is 0, there is no need to compute the fallback to pt, except if place is a stop_point
         # or a stop_area
@@ -70,11 +81,11 @@ class ProximitiesByCrowfly:
 
         coord = utils.get_pt_object_coord(self._requested_place_obj)
         if coord.lat and coord.lon:
-            crow_fly = self._instance.georef.get_crow_fly(utils.get_uri_pt_object(self._requested_place_obj),
-                                                          self._mode,  self._max_duration, self._max_nb_crowfly,
-                                                          **self._speed_switcher)
+            crow_fly = self._get_crow_fly(self._instance.georef)
 
-            logger.debug("finish proximities by crowfly from %s in %s", self._requested_place_obj.uri, self._mode)
+            logger.debug(
+                "finish proximities by crowfly from %s in %s", self._requested_place_obj.uri, self._mode
+            )
             return crow_fly
 
         logger.debug("the coord of requested places is not valid: %s", coord)
@@ -88,7 +99,16 @@ class ProximitiesByCrowfly:
 
 
 class ProximitiesByCrowflyPool:
-    def __init__(self, future_manager, instance, requested_place_obj, modes, request, direct_paths_by_mode, max_nb_crowfly=5000):
+    def __init__(
+        self,
+        future_manager,
+        instance,
+        requested_place_obj,
+        modes,
+        request,
+        direct_paths_by_mode,
+        max_nb_crowfly_by_mode,
+    ):
         """
         A ProximitiesByCrowflyPool is a set of ProximitiesByCrowfly grouped by mode
 
@@ -102,7 +122,8 @@ class ProximitiesByCrowflyPool:
                                      Ex. If we find a direct path from A to B by car whose duration is 15min, then there
                                      is no need to compute ProximitiesByCrowfly from A with a max_duration more than
                                      15min (max_duration is 30min by default).
-        :param max_nb_crowfly:
+        :param max_nb_crowfly_by_mode: a map of "mode" vs "nb of proximities by crowfly", used to reduce the load of
+                                       street network services if necessary
         """
         self._future_manager = future_manager
         self._instance = instance
@@ -111,7 +132,7 @@ class ProximitiesByCrowflyPool:
         self._modes = set(modes)
         self._request = request
         self._direct_paths_by_mode = direct_paths_by_mode
-        self._max_nb_crowfly = max_nb_crowfly
+        self._max_nb_crowfly_by_mode = max_nb_crowfly_by_mode
 
         self._future = None
         self._value = {}
@@ -121,13 +142,18 @@ class ProximitiesByCrowflyPool:
     def _async_request(self):
 
         for mode in self._modes:
-            max_fallback_duration = get_max_fallback_duration(self._request, mode, self._direct_paths_by_mode.get(mode))
-            p = ProximitiesByCrowfly(future_manager=self._future_manager,
-                                     instance=self. _instance,
-                                     requested_place_obj=self._requested_place_obj,
-                                     mode=mode,
-                                     max_duration=max_fallback_duration,
-                                     max_nb_crowfly=self._max_nb_crowfly)
+            max_fallback_duration = get_max_fallback_duration(
+                self._request, mode, self._direct_paths_by_mode.get(mode)
+            )
+            p = ProximitiesByCrowfly(
+                future_manager=self._future_manager,
+                instance=self._instance,
+                requested_place_obj=self._requested_place_obj,
+                mode=mode,
+                max_duration=max_fallback_duration,
+                max_nb_crowfly=self._max_nb_crowfly_by_mode.get(mode, 5000),
+                request=self._request,
+            )
 
             self._value[mode] = p
 

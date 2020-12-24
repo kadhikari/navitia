@@ -55,8 +55,11 @@ def make_url_test():
 def make_url_date_and_count_test():
     synthese = Synthese(id='tata', timezone='UTC', service_url='http://bob.com/')
 
-    url = synthese._make_url(MockRoutePoint(route_id='route_tata', line_id='line_toto', stop_id='stop_tutu'),
-                             count=2, from_dt=_timestamp("12:00"))
+    url = synthese._make_url(
+        MockRoutePoint(route_id='route_tata', line_id='line_toto', stop_id='stop_tutu'),
+        count=2,
+        from_dt=_timestamp("12:00"),
+    )
 
     # it should be a valid url
     assert validators.url(url)
@@ -90,15 +93,6 @@ class MockResponse(object):
         self.url = url
 
 
-class MockRequests(object):
-
-    def __init__(self, responses):
-        self.responses = responses
-
-    def get(self, url, *args, **kwargs):
-        return MockResponse(self.responses[url][0], self.responses[url][1], url)
-
-
 def mock_good_response():
     return """
     <timeTable>
@@ -119,7 +113,6 @@ def mock_good_response():
 
 
 class MockRequests(object):
-
     def __init__(self, responses):
         self.responses = responses
 
@@ -134,10 +127,7 @@ def next_passage_for_route_point_test():
     """
     synthese = Synthese(id='tata', timezone='UTC', service_url='http://bob.com/')
 
-    mock_requests = MockRequests({
-        'http://bob.com/?SERVICE=tdg&roid=stop_tutu':
-        (mock_good_response(), 200)
-    })
+    mock_requests = MockRequests({'http://bob.com/?SERVICE=tdg&roid=stop_tutu': (mock_good_response(), 200)})
 
     route_point = MockRoutePoint(route_id='route_tata', line_id='line_toto', stop_id='stop_tutu')
 
@@ -159,10 +149,7 @@ def next_passage_for_route_point_failure_test():
     """
     synthese = Synthese(id='tata', timezone='UTC', service_url='http://bob.com/')
 
-    mock_requests = MockRequests({
-        'http://bob.com/?SERVICE=tdg&roid=stop_tutu':
-        (mock_good_response(), 404)
-    })
+    mock_requests = MockRequests({'http://bob.com/?SERVICE=tdg&roid=stop_tutu': (mock_good_response(), 404)})
 
     route_point = MockRoutePoint(route_id='route_tata', line_id='line_toto', stop_id='stop_tutu')
 
@@ -170,6 +157,7 @@ def next_passage_for_route_point_failure_test():
         passages = synthese.next_passage_for_route_point(route_point)
 
         assert passages is None
+
 
 def status_test():
     synthese = Synthese(id=u'tata-é$~#@"*!\'`§èû', timezone='UTC', service_url='http://bob.com/')

@@ -29,11 +29,11 @@
 from __future__ import absolute_import, print_function, unicode_literals, division
 
 from six.moves.urllib.parse import quote
-from collections import namedtuple
 import itertools
 from .tests_mechanism import AbstractTestFixture, dataset
 from .check_utils import *
 import datetime
+from jormungandr import app
 
 
 def is_valid_stop_schedule_datetime(dt_wrapper, tester, only_time):
@@ -108,7 +108,7 @@ def is_valid_route_schedule(schedule, only_time=False):
             assert isinstance(dt_obj["links"], list)
             dt = dt_obj["date_time"]
             if dt == "":
-                pass # hole in the schedule
+                pass  # hole in the schedule
             elif only_time:
                 get_valid_time(dt)
             else:
@@ -158,8 +158,9 @@ class TestDepartureBoard(AbstractTestFixture):
         Same test as departure_board_test.cpp/test_calendar_week
         but after jormungandr
         """
-        response = self.query_region("stop_points/stop1/stop_schedules?"
-                                     "calendar=week_cal&from_datetime=20120615T080000")
+        response = self.query_region(
+            "stop_points/stop1/stop_schedules?" "calendar=week_cal&from_datetime=20120615T080000"
+        )
 
         is_valid_notes(response["notes"])
         assert "stop_schedules" in response
@@ -181,8 +182,9 @@ class TestDepartureBoard(AbstractTestFixture):
         """
         bob_the_calendar does not exists, we got an error
         """
-        response, error_code = self.query_region("stop_areas/stop1/stop_schedules?"
-                                                 "calendar=bob_the_calendar", check=False)
+        response, error_code = self.query_region(
+            "stop_areas/stop1/stop_schedules?" "calendar=bob_the_calendar", check=False
+        )
 
         assert error_code == 404
 
@@ -197,8 +199,9 @@ class TestDepartureBoard(AbstractTestFixture):
         """
 
         def sched(dt):
-            return self.query_region("stop_points/stop1/stop_schedules?from_datetime={dd}".format(dd=dt),
-                                     check=False)
+            return self.query_region(
+                "stop_points/stop1/stop_schedules?from_datetime={dd}".format(dd=dt), check=False
+            )
 
         # invalid month
         resp, code = sched("20121501T100000")
@@ -228,8 +231,7 @@ class TestDepartureBoard(AbstractTestFixture):
         """
         departure board for a given date
         """
-        response = self.query_region("stop_areas/stop1/stop_schedules?"
-                                     "from_datetime=20120615T080000")
+        response = self.query_region("stop_areas/stop1/stop_schedules?" "from_datetime=20120615T080000")
 
         is_valid_notes(response["notes"])
         assert "stop_schedules" in response
@@ -248,8 +250,9 @@ class TestDepartureBoard(AbstractTestFixture):
         """
         stop_schedule without geojson
         """
-        response = self.query_region("stop_areas/stop1/stop_schedules?"
-                                     "from_datetime=20120615T080000&disable_geojson=true")
+        response = self.query_region(
+            "stop_areas/stop1/stop_schedules?" "from_datetime=20120615T080000&disable_geojson=true"
+        )
 
         is_valid_notes(response["notes"])
         assert "stop_schedules" in response
@@ -269,8 +272,7 @@ class TestDepartureBoard(AbstractTestFixture):
         Partial Terminus
         """
         # Stop_schedules in TStop1: Destination in TStop1 for VJ1
-        response = self.query_region("stop_areas/Tstop1/stop_schedules?"
-                                     "from_datetime=20120615T080000")
+        response = self.query_region("stop_areas/Tstop1/stop_schedules?" "from_datetime=20120615T080000")
 
         is_valid_notes(response["notes"])
         assert "stop_schedules" in response
@@ -282,18 +284,20 @@ class TestDepartureBoard(AbstractTestFixture):
         assert response["stop_schedules"][0]["route"]["id"] == "A:1"
         assert len(response["stop_schedules"][0]["date_times"]) == 2
         assert response["stop_schedules"][0]["date_times"][0]["links"][0]["type"] == "notes"
-        assert response["stop_schedules"][0]["date_times"][0]["links"][0]["id"] == "destination:16710925402715739122"
+        assert (
+            response["stop_schedules"][0]["date_times"][0]["links"][0]["id"]
+            == "destination:16710925402715739122"
+        )
         assert len(response["notes"]) == 1
         assert response["notes"][0]["type"] == "notes"
         assert response["notes"][0]["value"] == "Tstop2"
         assert response["stop_schedules"][0]["date_times"][0]["links"][1]["type"] == "vehicle_journey"
-        assert response["stop_schedules"][0]["date_times"][0]["links"][1]["value"] == "vj1"
+        assert response["stop_schedules"][0]["date_times"][0]["links"][1]["value"] == "vehicle_journey:vj1"
         assert response["stop_schedules"][0]["date_times"][1]["links"][0]["type"] == "vehicle_journey"
-        assert response["stop_schedules"][0]["date_times"][1]["links"][0]["value"] == "vj2"
+        assert response["stop_schedules"][0]["date_times"][1]["links"][0]["value"] == "vehicle_journey:vj2"
 
         # Stop_schedules in TStop2: Only VJ2 in response
-        response = self.query_region("stop_areas/Tstop2/stop_schedules?"
-                                     "from_datetime=20120615T080000")
+        response = self.query_region("stop_areas/Tstop2/stop_schedules?" "from_datetime=20120615T080000")
 
         is_valid_notes(response["notes"])
         assert "stop_schedules" in response
@@ -305,11 +309,10 @@ class TestDepartureBoard(AbstractTestFixture):
         assert response["stop_schedules"][0]["route"]["id"] == "A:1"
         assert len(response["stop_schedules"][0]["date_times"]) == 1
         assert response["stop_schedules"][0]["date_times"][0]["links"][0]["type"] == "vehicle_journey"
-        assert response["stop_schedules"][0]["date_times"][0]["links"][0]["value"] == "vj2"
+        assert response["stop_schedules"][0]["date_times"][0]["links"][0]["value"] == "vehicle_journey:vj2"
 
         # vj1 not in response, Tstop2 is partial terminus
-        response = self.query_region("stop_areas/Tstop2/stop_schedules?"
-                                     "from_datetime=20120615T100000")
+        response = self.query_region("stop_areas/Tstop2/stop_schedules?" "from_datetime=20120615T100000")
 
         is_valid_notes(response["notes"])
         assert "stop_schedules" in response
@@ -322,12 +325,13 @@ class TestDepartureBoard(AbstractTestFixture):
         assert len(response["stop_schedules"][0]["date_times"]) == 1
         assert response["stop_schedules"][0]["date_times"][0]["date_time"] == "20120615T110000"
         assert response["stop_schedules"][0]["date_times"][0]["links"][0]["type"] == "vehicle_journey"
-        assert response["stop_schedules"][0]["date_times"][0]["links"][0]["value"] == "vj2"
+        assert response["stop_schedules"][0]["date_times"][0]["links"][0]["value"] == "vehicle_journey:vj2"
 
         # Stop_schedules in TStop2: Partial Terminus
 
-        response = self.query_region("stop_areas/Tstop1/stop_schedules?"
-                                     "from_datetime=20120615T080000&calendar=cal_partial_terminus")
+        response = self.query_region(
+            "stop_areas/Tstop1/stop_schedules?" "from_datetime=20120615T080000&calendar=cal_partial_terminus"
+        )
 
         is_valid_notes(response["notes"])
         assert "stop_schedules" in response
@@ -337,8 +341,9 @@ class TestDepartureBoard(AbstractTestFixture):
         assert response["stop_schedules"][0]["date_times"][0]["date_time"] == "100000"
         assert response["stop_schedules"][0]["stop_point"]["id"] == "Tstop1"
 
-        response = self.query_region("stop_areas/Tstop2/stop_schedules?"
-                                     "from_datetime=20120615T080000&calendar=cal_partial_terminus")
+        response = self.query_region(
+            "stop_areas/Tstop2/stop_schedules?" "from_datetime=20120615T080000&calendar=cal_partial_terminus"
+        )
 
         is_valid_notes(response["notes"])
         assert "stop_schedules" in response
@@ -374,8 +379,7 @@ class TestDepartureBoard(AbstractTestFixture):
         """
         Real Terminus
         """
-        response = self.query_region("stop_areas/Tstop3/stop_schedules?"
-                                     "from_datetime=20120615T080000")
+        response = self.query_region("stop_areas/Tstop3/stop_schedules?" "from_datetime=20120615T080000")
 
         is_valid_notes(response["notes"])
         assert "stop_schedules" in response
@@ -386,8 +390,7 @@ class TestDepartureBoard(AbstractTestFixture):
         """
         no departure for this day : 20120620T080000
         """
-        response = self.query_region("stop_areas/Tstop1/stop_schedules?"
-                                     "from_datetime=20120620T080000")
+        response = self.query_region("stop_areas/Tstop1/stop_schedules?" "from_datetime=20120620T080000")
 
         is_valid_notes(response["notes"])
         assert "stop_schedules" in response
@@ -431,7 +434,7 @@ class TestDepartureBoard(AbstractTestFixture):
 
         all_vj = headers_by_vj['all']
         all_vj_links = {(l['type'], l['id']): l for l in get_not_null(all_vj, 'links')}
-        assert ('vehicle_journey', 'all') in all_vj_links
+        assert ('vehicle_journey', 'vehicle_journey:all') in all_vj_links
         assert ('physical_mode', 'physical_mode:0') in all_vj_links
         all_vj_notes = get_real_notes(all_vj, response)
         assert len(all_vj_notes) == 1
@@ -467,7 +470,9 @@ class TestDepartureBoard(AbstractTestFixture):
         """
         route_schedule from 2 stop areas
         """
-        response = self.query_region("stop_areas/stop1/stop_areas/stop2/route_schedules?from_datetime=20120615T000000")
+        response = self.query_region(
+            "stop_areas/stop1/stop_areas/stop2/route_schedules?from_datetime=20120615T000000"
+        )
         schedules = get_not_null(response, 'route_schedules')
         assert len(schedules) == 1
 
@@ -475,8 +480,9 @@ class TestDepartureBoard(AbstractTestFixture):
         """
         we search for stop_areasS, this type doesn't exist
         """
-        response, code = self.query_region("stop_areass/stop1/stop_schedules?"
-                                           "from_datetime=20120615T080000", check=False)
+        response, code = self.query_region(
+            "stop_areass/stop1/stop_schedules?" "from_datetime=20120615T080000", check=False
+        )
         assert code == 400
         assert response['message'] == 'unknown type: stop_areass'
 
@@ -528,9 +534,13 @@ class TestDepartureBoard(AbstractTestFixture):
         for date_time in response["stop_schedules"][0]["date_times"]:
             # Extract links of vehicle_journey and notes type
             # Our comment is on the 'all' vj, it should have one (and only one) note
-            vj_link = [l for l in date_time["links"] if l["type"] == "vehicle_journey" and l["id"] == "all"]
+            vj_link = [
+                l
+                for l in date_time["links"]
+                if l["type"] == "vehicle_journey" and l["id"] == "vehicle_journey:all"
+            ]
             notes_link = [l for l in date_time["links"] if l["type"] == "notes"]
-            assert (len(vj_link) == 0 or len(notes_link) == 1)
+            assert len(vj_link) == 0 or len(notes_link) == 1
 
         # Check that the comment is only on the header and not in the rows
         response = self.query_region("lines/line:A/route_schedules?from_datetime=20120615T080000")
@@ -542,18 +552,23 @@ class TestDepartureBoard(AbstractTestFixture):
         assert len(response["route_schedules"][0]["table"]["headers"]) == 4
 
         for header in response["route_schedules"][0]["table"]["headers"]:
-            vj_link = [l for l in header["links"] if l["type"] == "vehicle_journey" and l["id"] == "all"]
+            vj_link = [
+                l for l in header["links"] if l["type"] == "vehicle_journey" and l["id"] == "vehicle_journey:all"
+            ]
             notes_link = [l for l in header["links"] if l["type"] == "notes"]
             # Assert that if it's the 'all' vj, there is one and only one note
-            assert (len(vj_link) == 0 or len(notes_link) == 1)
+            assert len(vj_link) == 0 or len(notes_link) == 1
 
         for row in response["route_schedules"][0]["table"]["rows"]:
             for date_time in row["date_times"]:
-                vj_link = [l for l in date_time["links"] if
-                           l["type"] == "vehicle_journey" and l["id"] == "all"]
+                vj_link = [
+                    l
+                    for l in date_time["links"]
+                    if l["type"] == "vehicle_journey" and l["id"] == "vehicle_journey:all"
+                ]
                 notes_link = [l for l in date_time["links"] if l["type"] == "notes"]
                 # assert that if it's the 'all' vj there is no note
-                assert (len(vj_link) == 0 or len(notes_link) == 0)
+                assert len(vj_link) == 0 or len(notes_link) == 0
 
     def test_line_closed(self):
         """
@@ -611,9 +626,12 @@ def check_stop_schedule(response, reference):
     """
     assert len(response) == len(reference)
     for resp in response:
-        ref = next(r for r in reference
-                   if r.sp == get_not_null(get_not_null(resp, 'stop_point'), 'id')
-                   and r.route == get_not_null(get_not_null(resp, 'route'), 'id'))
+        ref = next(
+            r
+            for r in reference
+            if r.sp == get_not_null(get_not_null(resp, 'stop_point'), 'id')
+            and r.route == get_not_null(get_not_null(resp, 'route'), 'id')
+        )
 
         for (resp_dt, ref_st) in itertools.izip_longest(resp['date_times'], ref.date_times):
             assert get_not_null(resp_dt, 'date_time') == ref_st.dt
@@ -643,73 +661,100 @@ class TestSchedules(AbstractTestFixture):
         self.check_stop_schedule_rt_sol(stop_sched)
 
     def test_stop_schedule_base_schedule(self):
-        response = self.query_region("stop_points/S1/stop_schedules?from_datetime=20160101T080000"
-                                     "&data_freshness=base_schedule")
+        response = self.query_region(
+            "stop_points/S1/stop_schedules?from_datetime=20160101T080000" "&data_freshness=base_schedule"
+        )
 
         is_valid_notes(response["notes"])
         stop_sched = response["stop_schedules"]
         is_valid_stop_schedule(stop_sched, self.tester)
 
-        check_stop_schedule(stop_sched,
-                            [StopSchedule(sp='S1', route='A:0',
-                                          date_times=[SchedDT(dt='20160101T090000', vj='A:vj1'),
-                                                      SchedDT(dt='20160101T100000', vj='A:vj2'),
-                                                      SchedDT(dt='20160101T110000', vj='A:vj3')]),
-                             StopSchedule(sp='S1', route='B:1',
-                                          date_times=[SchedDT(dt='20160101T113000', vj='B:vj1')])])
+        check_stop_schedule(
+            stop_sched,
+            [
+                StopSchedule(
+                    sp='S1',
+                    route='A:0',
+                    date_times=[
+                        SchedDT(dt='20160101T090000', vj='vehicle_journey:A:vj1'),
+                        SchedDT(dt='20160101T100000', vj='vehicle_journey:A:vj2'),
+                        SchedDT(dt='20160101T110000', vj='vehicle_journey:A:vj3'),
+                    ],
+                ),
+                StopSchedule(
+                    sp='S1', route='B:1', date_times=[SchedDT(dt='20160101T113000', vj='vehicle_journey:B:vj1')]
+                ),
+            ],
+        )
 
     def test_forbidden_uris_on_schedules(self):
         """test forbidden uri for schedules"""
-        response, code = self.query_no_assert("v1/coverage/basic_schedule_test/stop_points/S1/stop_schedules"
-                                              "?from_datetime=20160101T080000&data_freshness=base_schedule")
+        response, code = self.query_no_assert(
+            "v1/coverage/basic_schedule_test/stop_points/S1/stop_schedules"
+            "?from_datetime=20160101T080000&data_freshness=base_schedule"
+        )
         assert code == 200
         schedules = get_not_null(response, 'stop_schedules')
         assert len(schedules) == 2
 
         # filtering stop_schedules on line A
-        response, code = self.query_no_assert("v1/coverage/basic_schedule_test/stop_points/S1/stop_schedules"
-                                              "?from_datetime=20160101T080000&data_freshness=base_schedule"
-                                              "&forbidden_uris[]=A")
+        response, code = self.query_no_assert(
+            "v1/coverage/basic_schedule_test/stop_points/S1/stop_schedules"
+            "?from_datetime=20160101T080000&data_freshness=base_schedule"
+            "&forbidden_uris[]=A"
+        )
         assert code == 200
         schedules = get_not_null(response, 'stop_schedules')
         assert len(schedules) == 1
 
         # for retrocompatibility purpose forbidden_id[] is the same
-        response, code = self.query_no_assert("v1/coverage/basic_schedule_test/stop_points/S1/stop_schedules"
-                                              "?from_datetime=20160101T080000&data_freshness=base_schedule"
-                                              "&forbidden_id[]=A")
+        response, code = self.query_no_assert(
+            "v1/coverage/basic_schedule_test/stop_points/S1/stop_schedules"
+            "?from_datetime=20160101T080000&data_freshness=base_schedule"
+            "&forbidden_id[]=A"
+        )
         assert code == 200
         schedules = get_not_null(response, 'stop_schedules')
         assert len(schedules) == 1
 
         # for retrocompatibility purpose forbidden_id[] is the same
-        response, code = self.query_no_assert("v1/coverage/basic_schedule_test/stop_points/S1/stop_schedules"
-                                              "?from_datetime=20160101T080000&data_freshness=base_schedule"
-                                              "&forbidden_id[]=bloubliblou")
+        response, code = self.query_no_assert(
+            "v1/coverage/basic_schedule_test/stop_points/S1/stop_schedules"
+            "?from_datetime=20160101T080000&data_freshness=base_schedule"
+            "&forbidden_id[]=bloubliblou"
+        )
         assert code == 200
         schedules = get_not_null(response, 'stop_schedules')
         assert len(schedules) == 2
 
     @staticmethod
     def check_stop_schedule_rt_sol(stop_sched):
-        check_stop_schedule(stop_sched,
-                            [StopSchedule(sp='S1', route='A:0',
-                                          date_times=[SchedDT(dt='20160101T090700',
-                                                              vj='A:vj1:modified:0:delay_vj1'),
-                                                      SchedDT(dt='20160101T100700',
-                                                              vj='A:vj2:modified:0:delay_vj2'),
-                                                      SchedDT(dt='20160101T110700',
-                                                              vj='A:vj3:modified:0:delay_vj3')]),
-                             StopSchedule(sp='S1', route='B:1',
-                                          date_times=[SchedDT(dt='20160101T113000', vj='B:vj1')])])
+        check_stop_schedule(
+            stop_sched,
+            [
+                StopSchedule(
+                    sp='S1',
+                    route='A:0',
+                    date_times=[
+                        SchedDT(dt='20160101T090700', vj='vehicle_journey:A:vj1:modified:0:delay_vj1'),
+                        SchedDT(dt='20160101T100700', vj='vehicle_journey:A:vj2:modified:0:delay_vj2'),
+                        SchedDT(dt='20160101T110700', vj='vehicle_journey:A:vj3:modified:0:delay_vj3'),
+                    ],
+                ),
+                StopSchedule(
+                    sp='S1', route='B:1', date_times=[SchedDT(dt='20160101T113000', vj='vehicle_journey:B:vj1')]
+                ),
+            ],
+        )
 
     def test_stop_schedule_realtime(self):
         """
         we give a from_datetime and a data_freshness, we should get the schedule
         from this datetime and with realtime data
         """
-        response = self.query_region("stop_points/S1/stop_schedules?from_datetime=20160101T080000"
-                                     "&data_freshness=realtime")
+        response = self.query_region(
+            "stop_points/S1/stop_schedules?from_datetime=20160101T080000" "&data_freshness=realtime"
+        )
 
         is_valid_notes(response["notes"])
         stop_sched = response["stop_schedules"]
@@ -717,49 +762,103 @@ class TestSchedules(AbstractTestFixture):
 
         self.check_stop_schedule_rt_sol(stop_sched)
 
-    def test_stop_schedule_realtime_limit_per_schedule(self):
-        """
-        same as test_stop_schedule_realtime, but we limit the number of item per schedule
-        """
-        response = self.query_region("stop_points/S1/stop_schedules?from_datetime=20160101T080000"
-                                     "&data_freshness=realtime&items_per_schedule=1")
+        # default data_freshness=realtime, so it should be the same response with only from_datetime
+        response = self.query_region("stop_points/S1/stop_schedules?from_datetime=20160101T080000")
 
         is_valid_notes(response["notes"])
         stop_sched = response["stop_schedules"]
         is_valid_stop_schedule(stop_sched, self.tester)
 
-        check_stop_schedule(stop_sched,
-                            [StopSchedule(sp='S1', route='A:0',
-                                          date_times=[SchedDT(dt='20160101T090700',
-                                                              vj='A:vj1:modified:0:delay_vj1')]),
-                             StopSchedule(sp='S1', route='B:1',
-                                          date_times=[SchedDT(dt='20160101T113000', vj='B:vj1')])])
+        self.check_stop_schedule_rt_sol(stop_sched)
+
+        # default data_freshness=realtime, so it should be the same response without from_datetime
+        response = self.query_region("stop_points/S1/stop_schedules?_current_datetime=20160101T080000")
+
+        is_valid_notes(response["notes"])
+        stop_sched = response["stop_schedules"]
+        is_valid_stop_schedule(stop_sched, self.tester)
+
+        self.check_stop_schedule_rt_sol(stop_sched)
+
+    def test_route_schedule_freshness(self):
+        # default freshness is base_schedule
+        r = self.query_region("stop_points/S1/route_schedules?_current_datetime=20160101T080000")
+        assert r['route_schedules'][0]['table']['rows'][0]['date_times'][0]['data_freshness'] == 'base_schedule'
+
+        # default freshness is base_schedule with from_datetime too
+        r = self.query_region("stop_points/S1/route_schedules?from_datetime=20160101T080000")
+        assert r['route_schedules'][0]['table']['rows'][0]['date_times'][0]['data_freshness'] == 'base_schedule'
+
+        # respect data_freshness param
+        r = self.query_region(
+            "stop_points/S1/route_schedules?_current_datetime=20160101T080000&data_freshness=realtime"
+        )
+        assert r['route_schedules'][0]['table']['rows'][0]['date_times'][0]['data_freshness'] == 'realtime'
+        r = self.query_region(
+            "stop_points/S1/route_schedules?_current_datetime=20160101T080000&data_freshness=base_schedule"
+        )
+        assert r['route_schedules'][0]['table']['rows'][0]['date_times'][0]['data_freshness'] == 'base_schedule'
+
+    def test_stop_schedule_realtime_limit_per_schedule(self):
+        """
+        same as test_stop_schedule_realtime, but we limit the number of item per schedule
+        """
+        response = self.query_region(
+            "stop_points/S1/stop_schedules?from_datetime=20160101T080000"
+            "&data_freshness=realtime&items_per_schedule=1"
+        )
+
+        is_valid_notes(response["notes"])
+        stop_sched = response["stop_schedules"]
+        is_valid_stop_schedule(stop_sched, self.tester)
+
+        check_stop_schedule(
+            stop_sched,
+            [
+                StopSchedule(
+                    sp='S1',
+                    route='A:0',
+                    date_times=[SchedDT(dt='20160101T090700', vj='vehicle_journey:A:vj1:modified:0:delay_vj1')],
+                ),
+                StopSchedule(
+                    sp='S1', route='B:1', date_times=[SchedDT(dt='20160101T113000', vj='vehicle_journey:B:vj1')]
+                ),
+            ],
+        )
 
         # and test with a limit at 0
-        response = self.query_region("stop_points/S1/stop_schedules?from_datetime=20160101T080000"
-                                     "&data_freshness=realtime&items_per_schedule=0")
+        response = self.query_region(
+            "stop_points/S1/stop_schedules?from_datetime=20160101T080000"
+            "&data_freshness=realtime&items_per_schedule=0"
+        )
 
         is_valid_notes(response["notes"])
         stop_sched = response["stop_schedules"]
 
-        check_stop_schedule(stop_sched,
-                            [StopSchedule(sp='S1', route='A:0',
-                                          date_times=[]),
-                             StopSchedule(sp='S1', route='B:1',
-                                          date_times=[])])
+        check_stop_schedule(
+            stop_sched,
+            [
+                StopSchedule(sp='S1', route='A:0', date_times=[]),
+                StopSchedule(sp='S1', route='B:1', date_times=[]),
+            ],
+        )
 
         # test retrocompat'
-        response = self.query_region("stop_points/S1/stop_schedules?from_datetime=20160101T080000"
-                                     "&data_freshness=realtime&max_date_times=0")
+        response = self.query_region(
+            "stop_points/S1/stop_schedules?from_datetime=20160101T080000"
+            "&data_freshness=realtime&max_date_times=0"
+        )
 
         is_valid_notes(response["notes"])
         stop_sched = response["stop_schedules"]
 
-        check_stop_schedule(stop_sched,
-                            [StopSchedule(sp='S1', route='A:0',
-                                          date_times=[]),
-                             StopSchedule(sp='S1', route='B:1',
-                                          date_times=[])])
+        check_stop_schedule(
+            stop_sched,
+            [
+                StopSchedule(sp='S1', route='A:0', date_times=[]),
+                StopSchedule(sp='S1', route='B:1', date_times=[]),
+            ],
+        )
 
     def test_stop_schedule_no_dt(self):
         """
@@ -779,20 +878,28 @@ class TestSchedules(AbstractTestFixture):
 
     @staticmethod
     def check_departure_base_schedule_sol(departures):
-        check_departures(departures, [Departure(sp='S1', route='A:0', dt='20160101T090000'),
-                                      Departure(sp='S1', route='A:0', dt='20160101T100000'),
-                                      Departure(sp='S1', route='A:0', dt='20160101T110000'),
-                                      Departure(sp='S1', route='B:1', dt='20160101T113000'),
-                                      ])
+        check_departures(
+            departures,
+            [
+                Departure(sp='S1', route='A:0', dt='20160101T090000'),
+                Departure(sp='S1', route='A:0', dt='20160101T100000'),
+                Departure(sp='S1', route='A:0', dt='20160101T110000'),
+                Departure(sp='S1', route='B:1', dt='20160101T113000'),
+            ],
+        )
 
     @staticmethod
     def check_departure_rt_sol(departures):
         # RT activated: all A:0 vj are 7 mn late
-        check_departures(departures, [Departure(sp='S1', route='A:0', dt='20160101T090700'),
-                                      Departure(sp='S1', route='A:0', dt='20160101T100700'),
-                                      Departure(sp='S1', route='A:0', dt='20160101T110700'),
-                                      Departure(sp='S1', route='B:1', dt='20160101T113000'),
-                                      ])
+        check_departures(
+            departures,
+            [
+                Departure(sp='S1', route='A:0', dt='20160101T090700'),
+                Departure(sp='S1', route='A:0', dt='20160101T100700'),
+                Departure(sp='S1', route='A:0', dt='20160101T110700'),
+                Departure(sp='S1', route='B:1', dt='20160101T113000'),
+            ],
+        )
 
     def test_departure(self):
         """
@@ -805,8 +912,18 @@ class TestSchedules(AbstractTestFixture):
         is_valid_notes(response["notes"])
         departures = response["departures"]
         is_valid_departures(departures)
-        # Since data_freshness is specified, it's set to realtime by default, and there shouldn't be (prev, next) links
-        # for api  navigation
+        # Since data_freshness is not specified, it's set to realtime by default,
+        # and there shouldn't be (prev, next) links for api  navigation
+        assert not [l for l in response.get('links') if l.get('rel') == 'prev']
+        assert not [l for l in response.get('links') if l.get('rel') == 'next']
+        self.check_departure_rt_sol(departures)
+
+        # Same with only from_datetime specified
+        response = self.query_region("stop_points/S1/departures?from_datetime=20160101T080000")
+
+        is_valid_notes(response["notes"])
+        departures = response["departures"]
+        is_valid_departures(departures)
         assert not [l for l in response.get('links') if l.get('rel') == 'prev']
         assert not [l for l in response.get('links') if l.get('rel') == 'next']
         self.check_departure_rt_sol(departures)
@@ -815,8 +932,9 @@ class TestSchedules(AbstractTestFixture):
         """
         test a departure, no date time and base schedule, we should get base schedule
         """
-        response = self.query_region("stop_points/S1/departures?_current_datetime=20160101T080000"
-                                     "&data_freshness=base_schedule")
+        response = self.query_region(
+            "stop_points/S1/departures?_current_datetime=20160101T080000" "&data_freshness=base_schedule"
+        )
 
         is_valid_notes(response["notes"])
         departures = response["departures"]
@@ -845,8 +963,9 @@ class TestSchedules(AbstractTestFixture):
 
         we should have the wanted datetime used and the realtime activated
         """
-        response = self.query_region("stop_points/S1/departures?from_datetime=20160101T080000"
-                                     "&data_freshness=base_schedule")
+        response = self.query_region(
+            "stop_points/S1/departures?from_datetime=20160101T080000" "&data_freshness=base_schedule"
+        )
 
         is_valid_notes(response["notes"])
         departures = response["departures"]
@@ -859,8 +978,9 @@ class TestSchedules(AbstractTestFixture):
 
         base_departure_date_time != base_arrival_date_time on S11
         """
-        response = self.query_region("stop_points/S11/departures?from_datetime=20160101T080000"
-                                     "&data_freshness=base_schedule")
+        response = self.query_region(
+            "stop_points/S11/departures?from_datetime=20160101T080000" "&data_freshness=base_schedule"
+        )
 
         is_valid_notes(response["notes"])
         departures = response["departures"]
@@ -880,8 +1000,9 @@ class TestSchedules(AbstractTestFixture):
 
         base_departure_date_time != base_arrival_date_time on S11 and without realtime
         """
-        response = self.query_region("stop_points/S11/arrivals?from_datetime=20160101T080000"
-                                     "&data_freshness=base_schedule")
+        response = self.query_region(
+            "stop_points/S11/arrivals?from_datetime=20160101T080000" "&data_freshness=base_schedule"
+        )
 
         is_valid_notes(response["notes"])
         arrivals = response["arrivals"]
@@ -899,8 +1020,9 @@ class TestSchedules(AbstractTestFixture):
 
         base_departure_date_time != base_arrival_date_time on stopP2 and the realtime activated
         """
-        response = self.query_region("stop_points/stopP2/arrivals?from_datetime=20160103T100000"
-                                     "&data_freshness=realtime")
+        response = self.query_region(
+            "stop_points/stopP2/arrivals?from_datetime=20160103T100000" "&data_freshness=realtime"
+        )
 
         is_valid_notes(response["notes"])
         arrivals = response["arrivals"]
@@ -921,8 +1043,9 @@ class TestSchedules(AbstractTestFixture):
 
         base_departure_date_time != base_arrival_date_time on stopP2 and the realtime activated
         """
-        response = self.query_region("stop_points/stopP2/departures?from_datetime=20160103T100000"
-                                     "&data_freshness=realtime")
+        response = self.query_region(
+            "stop_points/stopP2/departures?from_datetime=20160103T100000" "&data_freshness=realtime"
+        )
 
         is_valid_notes(response["notes"])
         departures = response["departures"]
@@ -943,8 +1066,9 @@ class TestSchedules(AbstractTestFixture):
 
         base_departure_date_time != base_arrival_date_time on stopQ2 and the realtime activated
         """
-        response = self.query_region("stop_points/stopQ2/arrivals?from_datetime=20160103T230000"
-                                     "&data_freshness=realtime")
+        response = self.query_region(
+            "stop_points/stopQ2/arrivals?from_datetime=20160103T230000" "&data_freshness=realtime"
+        )
 
         is_valid_notes(response["notes"])
         arrivals = response["arrivals"]
@@ -965,8 +1089,9 @@ class TestSchedules(AbstractTestFixture):
 
         base_departure_date_time != base_arrival_date_time on stopQ2 and the realtime activated
         """
-        response = self.query_region("stop_points/stopQ2/departures?from_datetime=20160103T100000"
-                                     "&data_freshness=realtime")
+        response = self.query_region(
+            "stop_points/stopQ2/departures?from_datetime=20160103T100000" "&data_freshness=realtime"
+        )
 
         is_valid_notes(response["notes"])
         departures = response["departures"]
@@ -987,8 +1112,9 @@ class TestSchedules(AbstractTestFixture):
 
         base_departure_date_time != base_arrival_date_time on stopQ2 and without realtime
         """
-        response = self.query_region("stop_points/stopQ2/arrivals?from_datetime=20160103T230000"
-                                     "&data_freshness=base_schedule")
+        response = self.query_region(
+            "stop_points/stopQ2/arrivals?from_datetime=20160103T230000" "&data_freshness=base_schedule"
+        )
 
         is_valid_notes(response["notes"])
         arrivals = response["arrivals"]
@@ -1009,8 +1135,9 @@ class TestSchedules(AbstractTestFixture):
 
         base_departure_date_time != base_arrival_date_time on stopQ2 and without realtime
         """
-        response = self.query_region("stop_points/stopQ2/departures?from_datetime=20160103T100000"
-                                     "&data_freshness=base_schedule")
+        response = self.query_region(
+            "stop_points/stopQ2/departures?from_datetime=20160103T100000" "&data_freshness=base_schedule"
+        )
 
         is_valid_notes(response["notes"])
         departures = response["departures"]
@@ -1029,8 +1156,9 @@ class TestSchedules(AbstractTestFixture):
         """
         test a arrival api with frequency line and without realtime
         """
-        response = self.query_region("stop_points/stopf2/arrivals?from_datetime=20160103T100000"
-                                     "&data_freshness=base_schedule")
+        response = self.query_region(
+            "stop_points/stopf2/arrivals?from_datetime=20160103T100000" "&data_freshness=base_schedule"
+        )
 
         is_valid_notes(response["notes"])
         arrivals = response["arrivals"]
@@ -1065,8 +1193,9 @@ class TestSchedules(AbstractTestFixture):
         """
         test a departure api with frequency line and without realtime
         """
-        response = self.query_region("stop_points/stopf2/departures?from_datetime=20160103T100000"
-                                     "&data_freshness=base_schedule")
+        response = self.query_region(
+            "stop_points/stopf2/departures?from_datetime=20160103T100000" "&data_freshness=base_schedule"
+        )
 
         is_valid_notes(response["notes"])
         departures = response["departures"]
@@ -1101,6 +1230,665 @@ class TestSchedules(AbstractTestFixture):
         """
         there is no reason to have forbidden_uri in route_schedules, but it shouldn't crash...
         """
-        _, code = self.query_region("routes/line:A:0/route_schedules?"
-                                     "from_datetime=20120615T080000&forbidden_uris[]=toto", check=False)
+        _, code = self.query_region(
+            "routes/line:A:0/route_schedules?" "from_datetime=20120615T080000&forbidden_uris[]=toto", check=False
+        )
         assert code == 404
+
+
+@dataset({"timezone_cape_verde_test": {}})
+class TestFirstLastDatetimeWithNegativeTimezone(AbstractTestFixture):
+
+    """
+    test first/last datetime with a timezone whose UTC offset is **negative**
+
+    * The opening time should be the earliest departure of all vjs of the line
+    * The closing time should be the latest arrival of all vjs of the line
+
+    The closing time of line X is 02:45(local time) and the opening time is 8:00(local time)
+
+    Datetimes shown in the figure are all **LOCAL** datetimes
+
+    [2017T0101, 2017T0103] and [2017T0106, 2017T0108]
+    X_s1 ------------ X_S2 ------------ X_S3 ------------ X_S4
+    07:00             15:00             23:30             24:40  X:vj1    route_1
+    08:00             16:00             24:30             24:40  X:vj2    route_1
+    09:00             17:00             25:30             25:40  X:vj3    route_1
+
+    [2017T0104, 2017T0105]
+    X_s1 ------------ X_S2 ------------ X_S3 ------------ X_S4
+    07:05             15:05             23:45             23:55  X:vj4    route_1
+    08:05             16:05             24:45             24:55  X:vj5    route_1
+    09:05             17:05             25:45             25:55  X:vj6    route_1
+
+
+
+    [2017T0101, 2017T0108]
+    X_S4 ------------ X_S3 ------------ X_S2 ------------ X_S1
+    07:55             08:05             16:05             24:45    X:vj7    route_2
+    08:55             09:05             17:05             25:45    X:vj8    route_2
+
+    """
+
+    def test_first_last_datetime_same_day(self):
+        """              20170102
+                       from_datetime 20170102T1630
+                            |
+                            v
+        (Open)                        (Close)
+        07:00                          25:55
+         X_s1 ------------------------ X_S4
+
+        """
+        from_datetime = "20170102T163000"
+        response = self.query_region(
+            "stop_points/X_S2/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170102T150000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170102T170000"
+        assert stop_schedules[1]['first_datetime']['date_time'] == "20170102T160500"
+        assert stop_schedules[1]['last_datetime']['date_time'] == "20170102T170500"
+
+        response = self.query_region(
+            "stop_points/X_S1/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170103T070000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170103T090000"
+        # since it's the last stop_point, we cannot get on the bus....
+        assert 'first_datetime' not in stop_schedules[1]
+        assert 'last_datetime' not in stop_schedules[1]
+
+        """              20170102
+                       from_datetime 20170103T0001
+                                  |
+                                  v
+        (Open)                        (Close)
+        07:00                          25:55
+         X_s1 ------------------------ X_S4
+
+        """
+        from_datetime = "20170103T000100"
+        response = self.query_region(
+            "stop_points/X_S2/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170103T150000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170103T170000"
+        assert stop_schedules[1]['first_datetime']['date_time'] == "20170103T160500"
+        assert stop_schedules[1]['last_datetime']['date_time'] == "20170103T170500"
+
+        response = self.query_region(
+            "stop_points/X_S1/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170103T070000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170103T090000"
+        # since it's the last stop_point, we cannot get on the bus....
+        assert 'first_datetime' not in stop_schedules[1]
+        assert 'last_datetime' not in stop_schedules[1]
+
+        """              20170102
+                       from_datetime 20170102T2301
+                                  |
+                                  v
+        (Open)                        (Close)
+        07:00                          25:55
+         X_s1 ------------------------ X_S4
+
+        """
+        from_datetime = "20170102T2301"
+        response = self.query_region(
+            "stop_points/X_S2/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170103T150000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170103T170000"
+        assert stop_schedules[1]['first_datetime']['date_time'] == "20170103T160500"
+        assert stop_schedules[1]['last_datetime']['date_time'] == "20170103T170500"
+
+        response = self.query_region(
+            "stop_points/X_S1/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170103T070000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170103T090000"
+        # since it's the last stop_point, we cannot get on the bus....
+        assert 'first_datetime' not in stop_schedules[1]
+        assert 'last_datetime' not in stop_schedules[1]
+
+    def test_first_last_datetime_diff_validity(self):
+        """              20170102                                                20170103
+                                      from_datetime 20170103T0300
+                                                  |
+                                                  v
+        (Open)                         (Close)           (Open)                       (Close)
+        07:00                          25:55     03:00   07:00                        25:55
+         X_s1 ------------------------ X_S4              X_s1 ----------------------- X_S4
+
+        """
+        from_datetime = "20170103T030000"
+        response = self.query_region(
+            "stop_points/X_S2/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert stop_schedules
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170103T150000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170103T170000"
+        assert stop_schedules[1]['first_datetime']['date_time'] == "20170103T160500"
+        assert stop_schedules[1]['last_datetime']['date_time'] == "20170103T170500"
+
+        response = self.query_region(
+            "stop_points/X_S1/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170103T070000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170103T090000"
+        # since it's the last stop_point, we cannot get on the bus....
+        assert 'first_datetime' not in stop_schedules[1]
+        assert 'last_datetime' not in stop_schedules[1]
+
+        """
+                        20170103            (switch of vp)             20170104
+                                         from_datetime 20170104T0300
+                                                    |
+                                                    v
+        (Open)                         (Close)           (Open)                       (Close)
+        07:00                          25:55     03:00   07:00                        25:55
+         X_s1 ------------------------ X_S4              X_s1 ----------------------- X_S4
+
+        """
+        from_datetime = "20170104T030000"
+        response = self.query_region(
+            "stop_points/X_S2/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert stop_schedules
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170104T150500"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170104T170500"
+        assert stop_schedules[1]['first_datetime']['date_time'] == "20170104T160500"
+        assert stop_schedules[1]['last_datetime']['date_time'] == "20170104T170500"
+
+        response = self.query_region(
+            "stop_points/X_S1/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170104T070500"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170104T090500"
+        # since it's the last stop_point, we cannot get on the bus....
+        assert 'first_datetime' not in stop_schedules[1]
+        assert 'last_datetime' not in stop_schedules[1]
+
+        """
+                         20170105             (switch of vp)            20170106
+                  from_datetime 20170105T2200
+                                 |
+                                 v
+         (Open)                 22:00  (Close)           (Open)                       (Close)
+         07:00                          25:55             07:00                        25:55
+          X_s1 ------------------------ X_S4              X_s1 ----------------------- X_S4
+
+         """
+        from_datetime = "20170105T2200"
+        response = self.query_region(
+            "stop_points/X_S2/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert stop_schedules
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170106T150000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170106T170000"
+        assert stop_schedules[1]['first_datetime']['date_time'] == "20170106T160500"
+        assert stop_schedules[1]['last_datetime']['date_time'] == "20170106T170500"
+
+        response = self.query_region(
+            "stop_points/X_S1/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170106T070000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170106T090000"
+        # since it's the last stop_point, we cannot get on the bus....
+        assert 'first_datetime' not in stop_schedules[1]
+        assert 'last_datetime' not in stop_schedules[1]
+
+    def test_first_last_datetime_another_validity(self):
+        """              20170104
+                           from_datetime 20170105T0030
+                                      |
+                                      v
+        (Open)                        (Close)
+        07:00                          25:55
+         X_s1 ------------------------ X_S4
+
+        """
+        from_datetime = "20170105T003000"
+        response = self.query_region(
+            "stop_points/X_S2/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert stop_schedules
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170105T150500"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170105T170500"
+        assert stop_schedules[1]['first_datetime']['date_time'] == "20170105T160500"
+        assert stop_schedules[1]['last_datetime']['date_time'] == "20170105T170500"
+
+        response = self.query_region(
+            "stop_points/X_S1/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170105T070500"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170105T090500"
+        # since it's the last stop_point, we cannot get on the bus....
+        assert 'first_datetime' not in stop_schedules[1]
+        assert 'last_datetime' not in stop_schedules[1]
+
+    def test_first_last_datetime_just_after_midnight(self):
+        """              20170101
+                           from_datetime 20170102T002959
+                                      |
+                                      v
+        (Open)                        (Close)
+        07:00                          25:55
+         X_s1 ------------------------ X_S4
+
+        """
+        from_datetime = "20170102T002959"
+        response = self.query_region(
+            "stop_points/X_S3/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert stop_schedules
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170101T233000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170102T013000"
+
+    def test_first_last_datetime_with_very_small_duration(self):
+        """              20170101
+                           from_datetime 20170102T002959
+                                      |
+                                      v
+        (Open)                        (Close)
+        07:00                          25:55
+         X_s1 ------------------------ X_S4
+
+        """
+        from_datetime = "20170102T002959"
+        response = self.query_region(
+            "stop_points/X_S3/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule&duration=1".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert stop_schedules
+        assert len(stop_schedules[0]['date_times']) == 1
+        assert stop_schedules[0]['route']['name'] == 'route_1'
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170101T233000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170102T013000"
+
+        """              20170102
+        from_datetime 20170102T065959
+                  |
+                  v
+                    (Open)                        (Close)
+                    07:00                          25:55
+                     X_s1 ------------------------ X_S4
+
+        """
+        from_datetime = "20170102T065959"
+        response = self.query_region(
+            "stop_points/X_S1/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule&duration=1".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert stop_schedules
+        assert len(stop_schedules[0]['date_times']) == 1
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170102T070000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170102T090000"
+        # since the duration is very small we can't find anything for this route point
+        assert len(stop_schedules[1]['date_times']) == 0
+        assert 'first_datetime' not in stop_schedules[1]
+        assert 'last_datetime' not in stop_schedules[1]
+
+
+@dataset({"timezone_hong_kong_test": {}})
+class TestFirstLastDatetimeWithPositiveTimezone(AbstractTestFixture):
+    """
+    test first/last datetime with a timezone whose UTC offset is **positive**
+    (opening_time - utc_offset < 0)
+
+    The closing time of line X is 07:25(local time) and the opening time is 6:00(local time)
+
+    Datetimes shown in the figure are all **UTC** datetimes
+
+    [2017T0101, 2017T0103] and [2017T0106, 2017T0108]
+    X_s1 ------------ X_S2 ------------ X_S3 ------------ X_S4
+    06:00             06:30             23:50             24:30    X:vj1    route_1
+    06:10             06:40             24:00             24:40    X:vj2    route_1
+    06:20             06:50             24:10             24:50    X:vj3    route_1
+
+    [2017T0104, 2017T0105]
+    X_s1 ------------ X_S2 ------------ X_S3 ------------ X_S4
+    06:05             06:35             23:55             24:35    X:vj4    route_1
+    06:05             06:45             24:05             24:45    X:vj5    route_1
+    06:05             06:55             24:15             24:55    X:vj6    route_1
+
+
+    [2017T0101, 2017T0108]
+    X_s4 ------------ X_S3 ------------ X_S2 ------------ X_S1
+    06:00             06:40             23:40             24:20    X:vj7    route_2
+    06:05             06:45             23:45             24:25    X:vj8    route_2
+    """
+
+    def test_first_last_datetime_same_day(self):
+        """              20170102
+        from_datetime 20170102T0631
+                 |
+                 v
+        (Open)                        (Close)
+        06:00                         00:55
+         X_S1 ------------------------ X_S4
+
+        """
+        from_datetime = "20170102T063100"
+        response = self.query_region(
+            "stop_points/X_S2/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170102T063000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170102T065000"
+        assert stop_schedules[1]['first_datetime']['date_time'] == "20170102T234000"
+        assert stop_schedules[1]['last_datetime']['date_time'] == "20170102T234500"
+
+        response = self.query_region(
+            "stop_points/X_S1/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170103T060000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170103T062000"
+        # since it's the last stop_point, we cannot get on the bus....
+        assert 'first_datetime' not in stop_schedules[1]
+        assert 'last_datetime' not in stop_schedules[1]
+
+        """              20170102
+                         from_datetime 20170103T000100
+                                    |
+                                    v
+        (Open)                        (Close)
+        06:00                         00:55
+         X_S1 ------------------------ X_S4
+
+        """
+        from_datetime = "20170103T000100"
+        response = self.query_region(
+            "stop_points/X_S2/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170103T063000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170103T065000"
+        assert stop_schedules[1]['first_datetime']['date_time'] == "20170103T234000"
+        assert stop_schedules[1]['last_datetime']['date_time'] == "20170103T234500"
+
+        response = self.query_region(
+            "stop_points/X_S1/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170103T060000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170103T062000"
+        # since it's the last stop_point, we cannot get on the bus....
+        assert 'first_datetime' not in stop_schedules[1]
+        assert 'last_datetime' not in stop_schedules[1]
+
+    def test_first_last_datetime_diff_validity(self):
+        """              20170102                                      20170103
+                                      from_datetime 20170103T0300
+                                                 |
+                                                 v
+        (Open)                        (Close)            (Open)                        (Close)
+        06:00                         00:55     03:00    06:00                         00:55
+        X_S1 ------------------------ X_S4                X_S1 ------------------------ X_S4
+
+        """
+        from_datetime = "20170103T030000"
+        response = self.query_region(
+            "stop_points/X_S2/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170103T063000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170103T065000"
+        assert stop_schedules[1]['first_datetime']['date_time'] == "20170103T234000"
+        assert stop_schedules[1]['last_datetime']['date_time'] == "20170103T234500"
+
+        response = self.query_region(
+            "stop_points/X_S1/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170103T060000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170103T062000"
+        # since it's the last stop_point, we cannot get on the bus....
+        assert 'first_datetime' not in stop_schedules[1]
+        assert 'last_datetime' not in stop_schedules[1]
+
+        """
+                        20170104                                                  20170105
+                                      from_datetime 20170105T0300
+                                                |
+                                                v
+        (Open)                        (Close)            (Open)                        (Close)
+        06:00                         00:55    03:00     06:00                         00:55
+        X_S1 ------------------------ X_S4                X_S1 ------------------------ X_S4
+
+        """
+        from_datetime = "20170105T030000"
+        response = self.query_region(
+            "stop_points/X_S2/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170105T063500"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170105T065500"
+        assert stop_schedules[1]['first_datetime']['date_time'] == "20170105T234000"
+        assert stop_schedules[1]['last_datetime']['date_time'] == "20170105T234500"
+
+        response = self.query_region(
+            "stop_points/X_S1/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170105T060500"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170105T062500"
+        # since it's the last stop_point, we cannot get on the bus....
+        assert 'first_datetime' not in stop_schedules[1]
+        assert 'last_datetime' not in stop_schedules[1]
+
+    def test_first_last_datetime_another_validity(self):
+        """              20170105
+       from_datetime 20170105T0730
+                  |
+                  v
+        (Open)                        (Close)
+        06:00                         00:55
+         X_S1 ------------------------ X_S4
+
+        """
+        from_datetime = "20170105T073000"
+        response = self.query_region(
+            "stop_points/X_S2/stop_schedules?from_datetime=20170105T0730"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170106T063500"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170106T065500"
+        assert stop_schedules[1]['first_datetime']['date_time'] == "20170105T234000"
+        assert stop_schedules[1]['last_datetime']['date_time'] == "20170105T234500"
+
+        response = self.query_region(
+            "stop_points/X_S1/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert len(stop_schedules) == 2
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170106T060500"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170106T062500"
+        # since it's the last stop_point, we cannot get on the bus....
+        assert 'first_datetime' not in stop_schedules[1]
+        assert 'last_datetime' not in stop_schedules[1]
+
+    def test_first_last_datetime_just_after_midnight(self):
+        """              20170101 (the beginning of production)
+                           from_datetime 20170102T000001
+                                      |
+                                      v
+        (Open)                        (Close)
+        06:00                         00:55
+         X_S1 ------------------------ X_S4
+
+        """
+        from_datetime = "20170102T000001"
+        response = self.query_region(
+            "stop_points/X_S3/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert stop_schedules
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170102T235000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170103T001000"
+        assert stop_schedules[1]['first_datetime']['date_time'] == "20170102T064000"
+        assert stop_schedules[1]['last_datetime']['date_time'] == "20170102T064500"
+
+        """              20170102
+                           from_datetime 20170103T000001
+                                      |
+                                      v
+        (Open)                        (Close)
+        06:00                         00:55
+         X_S1 ------------------------ X_S4
+
+        """
+        from_datetime = "20170103T000001"
+        response = self.query_region(
+            "stop_points/X_S3/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert stop_schedules
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170102T235000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170103T001000"
+
+    def test_first_last_datetime_with_very_small_duration(self):
+        """              20170102
+                            from_datetime 20170102T235959
+                                      |
+                                      v
+        (Open)                        (Close)
+        06:00                         00:55
+         X_S1 ------------------------ X_S4
+
+        """
+        from_datetime = "20170102T235959"
+        response = self.query_region(
+            "stop_points/X_S3/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule&duration=1".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert stop_schedules
+        assert len(stop_schedules[0]['date_times']) == 1
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170102T235000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170103T001000"
+        # since the duration is very small we can't find anything for this route point
+        assert len(stop_schedules[1]['date_times']) == 0
+        assert 'first_datetime' not in stop_schedules[1]
+        assert 'last_datetime' not in stop_schedules[1]
+
+        """              20170102
+        from_datetime 20170102T055959
+                  |
+                  v
+                    (Open)                        (Close)
+                    06:00                         00:55
+                    X_S1 ------------------------ X_S4
+
+        """
+        from_datetime = "20170102T055959"
+        response = self.query_region(
+            "stop_points/X_S1/stop_schedules?from_datetime={}"
+            "&data_freshness=base_schedule&duration=1".format(from_datetime)
+        )
+
+        stop_schedules = response['stop_schedules']
+        assert stop_schedules
+        assert len(stop_schedules[0]['date_times']) == 1
+        assert stop_schedules[0]['first_datetime']['date_time'] == "20170102T060000"
+        assert stop_schedules[0]['last_datetime']['date_time'] == "20170102T062000"
+        # since the duration is very small we can't find anything for this route point
+        assert len(stop_schedules[1]['date_times']) == 0
+        assert 'first_datetime' not in stop_schedules[1]
+        assert 'last_datetime' not in stop_schedules[1]

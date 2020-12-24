@@ -28,6 +28,7 @@
 # IRC #navitia on freenode
 # https://groups.google.com/d/forum/navitia
 # www.navitia.io
+
 from __future__ import absolute_import, print_function, unicode_literals, division
 from flask import json
 
@@ -37,40 +38,45 @@ from navitiacommon import type_pb2, request_pb2
 import glob
 import logging
 from jormungandr.protobuf_to_dict import protobuf_to_dict
-from jormungandr.exceptions import ApiNotFound, RegionNotFound,\
-    DeadSocketException, InvalidArguments
+from jormungandr.exceptions import ApiNotFound, RegionNotFound, DeadSocketException, InvalidArguments
 from jormungandr import authentication, cache, app
 from jormungandr.instance import Instance
 import gevent
 import os
 
+
 def instances_comparator(instance1, instance2):
     """
-    compare the instances for journey computation
-
-    we want first the non free instances then the free ones following by priority
+    Compare the instances for journey computation
+    :return :   <0 if instance1 has priority over instance2
+                >0 if instance2 has priority over instance1
     """
-    #Here we choose the instance with greater priority.
+    # Choose the instance with greater priority
     if instance1.priority != instance2.priority:
         return instance2.priority - instance1.priority
 
+    # Choose the non-free instance
     if instance1.is_free != instance2.is_free:
         return instance1.is_free - instance2.is_free
 
     # TODO choose the smallest region ?
     # take the origin/destination coords into account and choose the region with the center nearest to those coords ?
-    return 1
+
+    # Sort by alphabetical order
+    return 1 if instance1.name > instance2.name else -1
 
 
 def choose_best_instance(instances):
     """
-    get the best instance in term of the instances_comparator
+    Get the best instance in term of the instances_comparator
+    If instances are equals, first instance from the list is returned
     """
     best = None
     for i in instances:
-        if not best or instances_comparator(i, best) > 0:
+        if not best or instances_comparator(i, best) < 0:
             best = i
     return best
+
 
 class InstanceManager(object):
 
@@ -82,10 +88,15 @@ class InstanceManager(object):
 
     def __init__(self, instances_dir=None, instance_filename_pattern='*.json', start_ping=False):
         # loads all json files found in 'instances_dir' that matches 'instance_filename_pattern'
-        self.configuration_files = glob.glob(instances_dir + '/' + instance_filename_pattern) if instances_dir else []
+        self.configuration_files = (
+            glob.glob(instances_dir + '/' + instance_filename_pattern) if instances_dir else []
+        )
         self.start_ping = start_ping
         self.instances = {}
         self.context = zmq.Context()
+        self.socket_ttl = app.config.get("ZMQ_SOCKET_TTL_SECONDS", 10)
+        self.reaper_interval = app.config.get("ZMQ_SOCKET_REAPER_INTERVAL", 10)
+        self.init_socket_reaper()
 
     def __repr__(self):
         return '<InstanceManager>'
@@ -93,12 +104,17 @@ class InstanceManager(object):
     def register_instance(self, config):
         logging.getLogger(__name__).debug("instance configuration: %s", config)
         name = config['key']
-        instance = Instance(self.context, name, config['zmq_socket'],
-                            config.get('street_network'),
-                            config.get('ridesharing'),
-                            config.get('realtime_proxies', []),
-                            config.get('zmq_socket_type', 'persistent'),
-                            config.get('default_autocomplete', 'kraken'))
+        instance = Instance(
+            self.context,
+            name,
+            config['zmq_socket'],
+            config.get('street_network'),
+            config.get('ridesharing'),
+            config.get('realtime_proxies', []),
+            config.get('zmq_socket_type', app.config.get('ZMQ_DEFAULT_SOCKET_TYPE', 'persistent')),
+            config.get('default_autocomplete', None),
+            config.get('equipment_details_providers', []),
+        )
         self.instances[instance.name] = instance
 
     def initialisation(self):
@@ -121,7 +137,7 @@ class InstanceManager(object):
                 config_data = json.load(f)
                 self.register_instance(config_data)
 
-        #we fetch the krakens metadata first
+        # we fetch the krakens metadata first
         # not on the ping thread to always have the data available (for the tests for example)
         self.init_kraken_instances()
 
@@ -132,11 +148,22 @@ class InstanceManager(object):
         logging.getLogger(__name__).info('clear cache')
         try:
             cache.delete_memoized(self._all_keys_of_id)
-        except RuntimeError:
-            #if there is an error with cache, flask want to access to the app, this will fail at startup
-            #with a "working outside of application context"
+        except:
+            # if there is an error with cache, flask want to access to the app, this will fail at startup
+            # with a "working outside of application context"
+            # redis timeout also raise an exception: redis.exceptions.TimeoutError
+            # each backend has it's own exceptions, so we catch everything :(
             logger = logging.getLogger(__name__)
             logger.exception('there seem to be some kind of problems with the cache')
+
+    def get_instance_scenario_name(self, instance_name, override_scenario):
+        if override_scenario:
+            return override_scenario
+
+        instance = self.instances[instance_name]
+        instance_db = instance.get_models()
+        scenario_name = instance_db.scenario if instance_db else 'new_default'
+        return scenario_name
 
     def dispatch(self, arguments, api, instance_name=None):
         if instance_name not in self.instances:
@@ -167,10 +194,56 @@ class InstanceManager(object):
 
         gevent.wait(futures)
         for future in futures:
-            #we check if an instance needs the cache to be purged
+            # we check if an instance needs the cache to be purged
             if future.get():
                 self._clear_cache()
-                break;
+                break
+
+    def init_socket_reaper(self):
+        # start a greenlet that handle connection closing when idle
+        logging.getLogger(__name__).info("spawning a socket reaper with gevent")
+        gevent.spawn(self.socket_reaper_thread)
+
+        # Use uwsgi timer if we are running in uwsgi without gevent.
+        # When we are using uwsgi without gevent, idle workers won't run the greenlet, it will only
+        # be scheduled when waiting for a response of an external service (kraken mostly)
+        try:
+            import uwsgi
+
+            # In gevent mode we stop, no need to add a timer, the greenlet will be scheduled while waiting
+            # for incomming request.
+            if 'gevent' in uwsgi.opt:
+                return
+
+            logging.getLogger(__name__).info("spawning a socket reaper with  uwsgi timer")
+
+            # Register a signal handler for the signal 1 of uwsgi
+            # this signal will trigger the socket reaper and can be run by any worker
+            def reaper_timer(signal):
+                self.reap_sockets()
+
+            uwsgi.register_signal(1, 'active-workers', reaper_timer)
+            # Add a timer that trigger this signal every reaper_interval second
+            uwsgi.add_timer(1, self.reaper_interval)
+        except (ImportError, ValueError):
+            # ImportError is triggered if we aren't in uwsgi
+            # ValueError is raise if there is no more timer availlable: only 64 timers can be created
+            # workers that didn't create a timer can still run the signal handler
+            # if uwsgi dispatch the signal to them
+            # signal are dispatched randomly to workers (not round robbin :()
+            logging.getLogger(__name__).info(
+                "No more uwsgi timer available or not running in uwsgi, only gevent will be used"
+            )
+
+    def reap_sockets(self):
+        for instance in self.instances.values():
+            instance.reap_socket(self.socket_ttl)
+            gevent.idle(-1)  # request handling has the priority
+
+    def socket_reaper_thread(self, disable_gevent=False):
+        while True:
+            self.reap_sockets()
+            gevent.sleep(self.reaper_interval)
 
     def thread_ping(self, timer=10):
         """
@@ -189,14 +262,14 @@ class InstanceManager(object):
         if not instances:
             return None
         user = authentication.get_user(token=authentication.get_token())
-        valid_instances = [i for i in instances
-                           if authentication.has_access(i.name, abort=False, user=user, api=api)]
+        valid_instances = [
+            i for i in instances if authentication.has_access(i.name, abort=False, user=user, api=api)
+        ]
         if not valid_instances:
             authentication.abort_request(user)
         return valid_instances
 
-    @cache.memoize(app.config['CACHE_CONFIGURATION'].get('TIMEOUT_PTOBJECTS', None))
-    def _all_keys_of_id(self, object_id):
+    def _find_coverage_by_object_id(self, object_id):
         if object_id.count(";") == 1 or object_id[:6] == "coord:":
             if object_id.count(";") == 1:
                 lon, lat = object_id.split(";")
@@ -208,6 +281,10 @@ class InstanceManager(object):
             except:
                 raise InvalidArguments(object_id)
             return self._all_keys_of_coord(flon, flat)
+        return self._all_keys_of_id(object_id)
+
+    @cache.memoize(app.config[str('CACHE_CONFIGURATION')].get(str('TIMEOUT_PTOBJECTS'), None))
+    def _all_keys_of_id(self, object_id):
         instances = []
         futures = {}
         for name, instance in self.instances.items():
@@ -223,7 +300,9 @@ class InstanceManager(object):
     def _all_keys_of_coord(self, lon, lat):
         p = geometry.Point(lon, lat)
         instances = [i.name for i in self.instances.values() if i.has_point(p)]
-        logging.getLogger(__name__).debug("all_keys_of_coord(self, {}, {}) returns {}".format(lon, lat, instances))
+        logging.getLogger(__name__).debug(
+            "all_keys_of_coord(self, {}, {}) returns {}".format(lon, lat, instances)
+        )
         if not instances:
             raise RegionNotFound(lon=lon, lat=lat)
         return instances
@@ -246,15 +325,19 @@ class InstanceManager(object):
             if name in self.instances:
                 available_instances = [self.instances[name]]
         elif lon and lat:
-            available_instances = [self.instances[k] for k in self._all_keys_of_coord(lon, lat)]
+            available_instances = [
+                self.instances[k] for k in self._all_keys_of_coord(lon, lat) if k in self.instances
+            ]
         elif object_id:
-            available_instances = [self.instances[k] for k in self._all_keys_of_id(object_id)]
+            available_instances = [
+                self.instances[k] for k in self._find_coverage_by_object_id(object_id) if k in self.instances
+            ]
         else:
             available_instances = list(self.instances.values())
 
         valid_instances = self._filter_authorized_instances(available_instances, api)
         if available_instances and not valid_instances:
-            #user doesn't have access to any of the instances
+            # user doesn't have access to any of the instances
             authentication.abort_request(user=authentication.get_user())
         else:
             return valid_instances
@@ -275,10 +358,7 @@ class InstanceManager(object):
             except DeadSocketException:
                 resp_dict = {
                     "status": "dead",
-                    "error": {
-                        "code": "dead_socket",
-                        "value": "The region {} is dead".format(key_region)
-                    }
+                    "error": {"code": "dead_socket", "value": "The region {} is dead".format(key_region)},
                 }
             if resp_dict.get('status') == 'no_data' and not region and not lon and not lat:
                 continue

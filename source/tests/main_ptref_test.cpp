@@ -1,28 +1,28 @@
 /* Copyright © 2001-2014, Canal TP and/or its affiliates. All rights reserved.
-  
+
 This file is part of Navitia,
     the software to build cool stuff with public transport.
- 
+
 Hope you'll enjoy and contribute to this project,
     powered by Canal TP (www.canaltp.fr).
 Help us simplify mobility and open public transport:
     a non ending quest to the responsive locomotion way of traveling!
-  
+
 LICENCE: This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
-   
+
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Affero General Public License for more details.
-   
+
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
-  
+
 Stay tuned using
-twitter @navitia 
+twitter @navitia
 IRC #navitia on freenode
 https://groups.google.com/d/forum/navitia
 www.navitia.io
@@ -35,89 +35,101 @@ www.navitia.io
 
 static boost::gregorian::date_period period(std::string beg, std::string end) {
     boost::gregorian::date start_date = boost::gregorian::from_undelimited_string(beg);
-    boost::gregorian::date end_date = boost::gregorian::from_undelimited_string(end); //end is not in the period
+    boost::gregorian::date end_date = boost::gregorian::from_undelimited_string(end);  // end is not in the period
     return {start_date, end_date};
 }
 
 struct data_set {
-
     data_set(std::string date,
              std::string publisher_name,
              std::string timezone_name,
              navitia::type::TimeZoneHandler::dst_periods timezones)
         : b(date, publisher_name, timezone_name, timezones) {
-
         // Add calendar
-        navitia::type::Calendar* wednesday_cal {new navitia::type::Calendar(b.data->meta->production_date.begin())};
+        navitia::type::Calendar* wednesday_cal{new navitia::type::Calendar(b.data->meta->production_date.begin())};
         wednesday_cal->name = "the wednesday calendar";
         wednesday_cal->uri = "wednesday";
         wednesday_cal->active_periods.push_back(period("20140101", "20140911"));
         wednesday_cal->week_pattern = std::bitset<7>{"0010000"};
         for (int i = 1; i <= 3; ++i) {
             navitia::type::ExceptionDate exd;
-            exd.date = boost::gregorian::date(2014, i, 10+i); //random date for the exceptions
+            exd.date = boost::gregorian::date(2014, i, 10 + i);  // random date for the exceptions
             exd.type = navitia::type::ExceptionDate::ExceptionType::sub;
             wednesday_cal->exceptions.push_back(exd);
         }
         b.data->pt_data->calendars.push_back(wednesday_cal);
 
-        navitia::type::Calendar* monday_cal {new navitia::type::Calendar(b.data->meta->production_date.begin())};
+        navitia::type::Calendar* monday_cal{new navitia::type::Calendar(b.data->meta->production_date.begin())};
         monday_cal->name = "the monday calendar";
         monday_cal->uri = "monday";
         monday_cal->active_periods.push_back(period("20140105", "20140911"));
         monday_cal->week_pattern = std::bitset<7>{"1000000"};
         for (int i = 1; i <= 3; ++i) {
             navitia::type::ExceptionDate exd;
-            exd.date = boost::gregorian::date(2014, i+3, 5+i); //random date for the exceptions
+            exd.date = boost::gregorian::date(2014, i + 3, 5 + i);  // random date for the exceptions
             exd.type = navitia::type::ExceptionDate::ExceptionType::sub;
             monday_cal->exceptions.push_back(exd);
         }
         b.data->pt_data->calendars.push_back(monday_cal);
-        //add lines
+
+        // Commercial modes
+        b.data->pt_data->get_or_create_commercial_mode("Commercial_mode:Car", "Car");
+
+        // add lines
         b.sa("stop_area:stop1", 9, 9, false, true)("stop_area:stop1", 9, 9);
         b.sa("stop_area:stop2", 10, 10, false, true)("stop_area:stop2", 10, 10);
-        b.vj("line:A", "", "", true, "vj1", "", "physical_mode:Car")
-                ("stop_area:stop1", 10 * 3600 + 15 * 60, 10 * 3600 + 15 * 60)
-                ("stop_area:stop2", 11 * 3600 + 10 * 60, 11 * 3600 + 10 * 60);
+        b.vj("line:A", "", "", true, "vj1", "", "physical_mode:Car")(
+            "stop_area:stop1", 10 * 3600 + 15 * 60, 10 * 3600 + 15 * 60)("stop_area:stop2", 11 * 3600 + 10 * 60,
+                                                                         11 * 3600 + 10 * 60);
         b.lines["line:A"]->calendar_list.push_back(wednesday_cal);
         b.lines["line:A"]->calendar_list.push_back(monday_cal);
 
         // we add a stop area with a strange name (with space and special char)
         b.sa("stop_with name bob \" , é", 20, 20);
-        b.vj("line:B").physical_mode("physical_mode:Car")
-                ("stop_point:stop_with name bob \" , é", "8:00"_t)("stop_area:stop1", "9:00"_t);
+        b.vj("line:B").physical_mode("physical_mode:Car")("stop_point:stop_with name bob \" , é", "8:00"_t)(
+            "stop_area:stop1", "9:00"_t);
 
         // add a line with a unicode name
-        b.vj("line:Ça roule").uri("vj_b")
-                ("stop_area:stop2", 10 * 3600 + 15 * 60, 10 * 3600 + 15 * 60)
-                ("stop_area:stop1", 11 * 3600 + 10 * 60, 11 * 3600 + 10 * 60);
+        b.vj("line:Ça roule")
+            .name("vj_b")("stop_area:stop2", 10 * 3600 + 15 * 60, 10 * 3600 + 15 * 60)(
+                "stop_area:stop1", 11 * 3600 + 10 * 60, 11 * 3600 + 10 * 60);
+        b.lines["line:Ça roule"]->commercial_mode = nullptr;  // remove commercial_mode to allow label testing
 
-        //add a mock shape
-        b.lines["line:A"]->shape = {
-                                    {{1,2}, {2,2}, {4,5}},
-                                    {{10,20}, {20,20}, {40,50}}
-                                   };
+        // add a mock shape
+        b.lines["line:A"]->shape = {{{1, 2}, {2, 2}, {4, 5}}, {{10, 20}, {20, 20}, {40, 50}}};
 
-        // Commercial modes
-        navitia::type::CommercialMode* cm = new navitia::type::CommercialMode();
-        cm->uri = "Commercial_mode:Car";
-        cm->name = "Car";
-        b.data->pt_data->commercial_modes.push_back(cm);
-        b.lines["line:A"]->commercial_mode = cm;
-
-        for (auto r: b.lines["line:A"]->route_list) {
-            r->shape = {
-                {{1,2}, {2,2}, {4,5}},
-                {{10,20}, {20,20}, {40,50}}
-            };
+        for (auto r : b.lines["line:A"]->route_list) {
+            r->shape = {{{1, 2}, {2, 2}, {4, 5}}, {{10, 20}, {20, 20}, {40, 50}}};
             r->destination = b.sas.find("stop_area:stop2")->second;
         }
-        for (auto r: b.lines["line:B"]->route_list) {
+        for (auto r : b.lines["line:B"]->route_list) {
             r->destination = b.sas.find("stop_area:stop1")->second;
         }
-        for (auto r: b.lines["line:Ça roule"]->route_list) {
+        for (auto r : b.lines["line:Ça roule"]->route_list) {
             r->destination = b.sas.find("stop_area:stop1")->second;
         }
+
+        // Company added
+        navitia::type::Company* cmp1 = new navitia::type::Company();
+        cmp1->line_list.push_back(b.lines["line:A"]);
+        b.data->pt_data->companies.push_back(cmp1);
+        cmp1->idx = b.data->pt_data->companies.size();
+        cmp1->name = "CMP1";
+        cmp1->uri = "CMP1";
+        b.lines["line:A"]->company_list.push_back(cmp1);
+        navitia::type::Company* cmp2 = new navitia::type::Company();
+        cmp2->line_list.push_back(b.lines["line:A"]);
+        b.data->pt_data->companies.push_back(cmp2);
+        cmp2->idx = b.data->pt_data->companies.size();
+        cmp2->name = "CMP2";
+        cmp2->uri = "CMP2";
+        b.lines["line:A"]->company_list.push_back(cmp2);
+        b.lines["line:A"]->text_color = "FFD700";
+
+        b.data->pt_data->codes.add(b.data->pt_data->companies[0], "cmp1_code_key_0", "cmp1_code_value_0");
+        b.data->pt_data->codes.add(b.data->pt_data->companies[0], "cmp1_code_key_1", "cmp1_code_value_1");
+        b.data->pt_data->codes.add(b.data->pt_data->companies[0], "cmp1_code_key_2", "cmp1_code_value_2");
+        b.data->pt_data->codes.add(b.data->pt_data->companies[1], "cmp2_code_key_0", "cmp2_code_value_0");
         b.data->pt_data->codes.add(b.lines["line:A"], "external_code", "A");
         b.data->pt_data->codes.add(b.lines["line:A"], "codeB", "B");
         b.data->pt_data->codes.add(b.lines["line:A"], "codeB", "Bise");
@@ -126,11 +138,13 @@ struct data_set {
 
         b.data->build_uri();
 
-        navitia::type::VehicleJourney* vj = b.data->pt_data->vehicle_journeys_map["vj1"];
+        navitia::type::VehicleJourney* vj = b.data->pt_data->vehicle_journeys_map["vehicle_journey:vj1"];
         vj->base_validity_pattern()->add(boost::gregorian::from_undelimited_string("20140101"),
-                                  boost::gregorian::from_undelimited_string("20140111"), monday_cal->week_pattern);
+                                         boost::gregorian::from_undelimited_string("20140111"),
+                                         monday_cal->week_pattern);
+        vj->company = cmp1;
 
-        //we add some comments
+        // we add some comments
         auto& comments = b.data->pt_data->comments;
         comments.add(b.data->pt_data->routes_map["line:A:0"], "I'm a happy comment");
         comments.add(b.lines["line:A"], "I'm a happy comment");
@@ -138,27 +152,15 @@ struct data_set {
         comments.add(b.sas["stop_area:stop1"], "the stop is sad");
         comments.add(b.data->pt_data->stop_points_map["stop_area:stop2"], "hello bob");
         comments.add(b.data->pt_data->vehicle_journeys[0], "hello");
-        comments.add(b.data->pt_data->vehicle_journeys[0]->stop_time_list.front(),
-                                      "stop time is blocked");
+        comments.add(b.data->pt_data->vehicle_journeys[0]->stop_time_list.front(), "stop time is blocked");
         // Disruption on stoparea
         using btp = boost::posix_time::time_period;
         b.impact(nt::RTLevel::RealTime, "Disruption 1")
-                .severity(nt::disruption::Effect::UNKNOWN_EFFECT)
-                .msg("Disruption on StopArea stop_area:stop1", nt::disruption::ChannelType::email)
-                .on(nt::Type_e::StopArea, "stop_area:stop1")
-                .application_periods(btp("20140101T000000"_dt, "20140120T235959"_dt))
-                .publish(btp("20140101T000000"_dt, "20140120T235959"_dt));
-       // Company added
-        navitia::type::Company* cmp = new navitia::type::Company();
-        cmp->line_list.push_back(b.lines["line:A"]);
-        vj->company = cmp;
-        b.data->pt_data->companies.push_back(cmp);
-        cmp->idx = b.data->pt_data->companies.size();
-        cmp->name = "CMP1";
-        cmp->uri = "CMP1";
-        b.lines["line:A"]->company_list.push_back(cmp);
-
-        b.lines["line:A"]->text_color = "FFD700";
+            .severity(nt::disruption::Effect::UNKNOWN_EFFECT)
+            .msg("Disruption on StopArea stop_area:stop1", nt::disruption::ChannelType::email)
+            .on(nt::Type_e::StopArea, "stop_area:stop1")
+            .application_periods(btp("20140101T000000"_dt, "20140120T235959"_dt))
+            .publish(btp("20140101T000000"_dt, "20140120T235959"_dt));
         // LineGroup added
         navitia::type::LineGroup* lg = new navitia::type::LineGroup();
         lg->name = "A group";
@@ -170,13 +172,13 @@ struct data_set {
         b.data->pt_data->line_groups.push_back(lg);
 
         b.impact(nt::RTLevel::RealTime, "Disruption On line:A")
-                .severity(nt::disruption::Effect::UNKNOWN_EFFECT)
-                .msg("Disruption on Line line:A", nt::disruption::ChannelType::email)
-                .on(nt::Type_e::Line, "line:A")
-                .application_periods(btp("20140101T000000"_dt, "20140120T235959"_dt))
-                .publish(btp("20140101T000000"_dt, "20140120T235959"_dt));
+            .severity(nt::disruption::Effect::UNKNOWN_EFFECT)
+            .msg("Disruption on Line line:A", nt::disruption::ChannelType::email)
+            .on(nt::Type_e::Line, "line:A")
+            .application_periods(btp("20140101T000000"_dt, "20140120T235959"_dt))
+            .publish(btp("20140101T000000"_dt, "20140120T235959"_dt));
 
-        //contributor "c1" contains dataset "d1"
+        // contributor "c1" contains dataset "d1"
         navitia::type::Contributor* contributor = new navitia::type::Contributor();
         contributor->idx = b.data->pt_data->contributors.size();
         contributor->uri = "c1";
@@ -197,7 +199,7 @@ struct data_set {
         contributor->dataset_list.insert(dataset);
         b.data->pt_data->datasets.push_back(dataset);
 
-        //Link between dataset and vehicle_journey
+        // Link between dataset and vehicle_journey
         vj = b.data->pt_data->vehicle_journeys.back();
         vj->dataset = dataset;
         dataset->vehiclejourney_list.insert(vj);
@@ -222,7 +224,7 @@ int main(int argc, const char* const argv[]) {
 
     data_set data(date, publisher_name, timezone_name, timezones);
 
-    mock_kraken kraken(data.b, "main_ptref_test", argc, argv);
+    mock_kraken kraken(data.b, argc, argv);
 
     return 0;
 }

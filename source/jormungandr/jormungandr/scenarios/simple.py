@@ -27,7 +27,7 @@
 # https://groups.google.com/d/forum/navitia
 # www.navitia.io
 from __future__ import absolute_import, print_function, unicode_literals, division
-from flask.ext.restful import abort
+from flask_restful import abort
 from flask.globals import request
 from jormungandr.utils import date_to_timestamp, timestamp_to_str, dt_to_str, timestamp_to_datetime
 
@@ -37,6 +37,7 @@ from jormungandr.interfaces.common import pb_odt_level
 from jormungandr.scenarios.utils import places_type, pt_object_type, add_link
 from jormungandr.scenarios.utils import build_pagination
 from jormungandr.scenarios.utils import updated_common_journey_request_with_default
+from jormungandr.exceptions import UnknownObject
 
 
 def get_pb_data_freshness(request):
@@ -86,6 +87,7 @@ def isochrone_common(isochrone, request, instance, journey_req):
 
     journey_req.streetnetwork_params.origin_mode = isochrone.origin_modes[0]
     journey_req.streetnetwork_params.destination_mode = isochrone.destination_modes[0]
+
 
 class Scenario(object):
     """
@@ -154,7 +156,7 @@ class Scenario(object):
 
         if request["forbidden_uris[]"]:
             for forbidden_uri in request["forbidden_uris[]"]:
-                req.traffic_reports.forbidden_uris.append(forbidden_uri)
+                req.line_reports.forbidden_uris.append(forbidden_uri)
 
         if request['since']:
             req.line_reports.since_datetime = request['since']
@@ -164,14 +166,44 @@ class Scenario(object):
         resp = instance.send_and_receive(req)
         return resp
 
+    def equipment_reports(self, request, instance):
+        req = request_pb2.Request()
+        req.requested_api = type_pb2.equipment_reports
+        req.equipment_reports.depth = request['depth']
+        req.equipment_reports.filter = request['filter']
+        req.equipment_reports.count = request['count']
+        req.equipment_reports.start_page = request['start_page']
+
+        if request["forbidden_uris[]"]:
+            for forbidden_uri in request["forbidden_uris[]"]:
+                req.equipment_reports.forbidden_uris.append(forbidden_uri)
+
+        resp = instance.send_and_receive(req)
+        return resp
+
     def places(self, request, instance):
         return instance.get_autocomplete(request.get('_autocomplete')).get(request, instances=[instance])
 
     def place_uri(self, request, instance):
         autocomplete = instance.get_autocomplete(request.get('_autocomplete'))
-        return autocomplete.get_by_uri(uri=request["uri"],
-                                       instances=[instance],
-                                       current_datetime=request['_current_datetime'])
+        try:
+            return autocomplete.get_by_uri(
+                uri=request["uri"], instances=[instance], current_datetime=request['_current_datetime']
+            )
+        except UnknownObject as e:
+            # the autocomplete have not found anything
+            # We'll check if we can find another autocomplete system that explictly handle stop_points
+            # because for the moment mimir does not have stoppoints, but kraken do
+            for autocomplete_system in instance.stop_point_fallbacks():
+                if autocomplete_system == autocomplete:
+                    continue
+                res = autocomplete_system.get_by_uri(
+                    uri=request["uri"], instances=[instance], current_datetime=request['_current_datetime']
+                )
+                if res.get("places"):
+                    return res
+            # we raise the initial exception
+            raise e
 
     def pt_objects(self, request, instance):
         req = request_pb2.Request()
@@ -189,10 +221,11 @@ class Scenario(object):
         if request["admin_uri[]"]:
             for admin_uri in request["admin_uri[]"]:
                 req.pt_objects.admin_uris.append(admin_uri)
+        req.disable_disruption = request["disable_disruption"]
 
         resp = instance.send_and_receive(req)
-        #The result contains places but not pt_objects,
-        #object place is transformed to pt_object afterwards.
+        # The result contains places but not pt_objects,
+        # object place is transformed to pt_object afterwards.
         if len(resp.places) == 0 and request['search_type'] == 0:
             request["search_type"] = 1
             return self.pt_objects(request, instance)
@@ -228,6 +261,7 @@ class Scenario(object):
 
                 req.places_nearby.types.append(places_type[type])
         req.places_nearby.filter = request["filter"]
+        req.disable_disruption = request["disable_disruption"] if request.get("disable_disruption") else False
         resp = instance.send_and_receive(req)
         build_pagination(request, resp)
         return resp
@@ -252,7 +286,7 @@ class Scenario(object):
             req.ptref.since_datetime = request['since']
         if request['until']:
             req.ptref.until_datetime = request['until']
-
+        req.disable_disruption = request["disable_disruption"]
         resp = instance.send_and_receive(req)
         build_pagination(request, resp)
         return resp
@@ -292,9 +326,8 @@ class Scenario(object):
         resp = instance.send_and_receive(req)
         return resp
 
-
     def stop_areas(self, request, instance):
-        return self.__on_ptref("stop_areas", type_pb2.STOP_AREA, request,instance)
+        return self.__on_ptref("stop_areas", type_pb2.STOP_AREA, request, instance)
 
     def stop_points(self, request, instance):
         return self.__on_ptref("stop_points", type_pb2.STOP_POINT, request, instance)
@@ -345,7 +378,6 @@ class Scenario(object):
         return self.__on_ptref("impact", type_pb2.IMPACT, request, instance)
 
     def contributors(self, request, instance):
-
         return self.__on_ptref("contributors", type_pb2.CONTRIBUTOR, request, instance)
 
     def datasets(self, request, instance):
@@ -400,4 +432,3 @@ class Scenario(object):
         self._add_prev_link(resp, cloned_params, clockwise)
         # we also compute first/last journey link
         self._add_first_last_links(resp, cloned_params)
-

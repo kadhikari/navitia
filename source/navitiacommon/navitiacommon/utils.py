@@ -30,11 +30,13 @@
 import zipfile
 import os
 import glob
+import logging
 
 street_source_types = ['OSM']
-address_source_types = ['BANO', 'OSM']
+address_source_types = ['BANO', 'OA']
 poi_source_types = ['FUSIO', 'OSM']
-admin_source_types = ['OSM']
+admin_source_types = ['OSM', 'COSMOGONY']
+
 
 def type_of_data(filename):
     """
@@ -56,8 +58,9 @@ def type_of_data(filename):
 
     for 'fusio', 'gtfs', 'fares' and 'poi', we return the directory since there are several file to load
     """
+
     def files_type(files):
-        #first we try fusio, because it can load fares too
+        # first we try fusio, because it can load fares too
         if any(f for f in files if f.endswith("contributors.txt")):
             return 'fusio'
         if any(f for f in files if f.endswith("fares.csv")):
@@ -87,7 +90,12 @@ def type_of_data(filename):
         if filename.endswith('.pbf'):
             return 'osm', filename
         if filename.endswith('.zip'):
-            zipf = zipfile.ZipFile(filename)
+            try:
+                zipf = zipfile.ZipFile(filename)
+            except Exception as e:
+                logging.exception('Corrupted source file  : {} error {}'.format(filename, e))
+                raise
+
             pt_type = files_type(zipf.namelist())
             if not pt_type:
                 return None, None
@@ -110,12 +118,14 @@ def family_of_data(type):
     by example "geopal" and "osm" are in the "streetnework" family
     """
     mapping = {
-        'osm': 'streetnetwork', 'geopal': 'streetnetwork',
+        'osm': 'streetnetwork',
+        'geopal': 'streetnetwork',
         'synonym': 'synonym',
         'poi': 'poi',
-        'fusio': 'pt', 'gtfs': 'pt',
+        'fusio': 'pt',
+        'gtfs': 'pt',
         'fare': 'fare',
-        'shape': 'shape'
+        'shape': 'shape',
     }
     if type in mapping:
         return mapping[type]

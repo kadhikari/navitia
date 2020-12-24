@@ -34,21 +34,27 @@ import logging
 import pybreaker
 import requests as requests
 
-from jormungandr import cache, app, utils, new_relic
+from jormungandr import cache, app, new_relic
 from jormungandr.parking_space_availability import AbstractParkingPlacesProvider
+from jormungandr.ptref import FeedPublisher
+
 from abc import abstractmethod
 
 
 class CommonCarParkProvider(AbstractParkingPlacesProvider):
-
-    def __init__(self, url, operators, dataset, timeout, **kwargs):
+    def __init__(self, url, operators, dataset, timeout, feed_publisher, **kwargs):
 
         self.ws_service_template = url + '?dataset={}'
         self.operators = [o.lower() for o in operators]
         self.timeout = timeout
         self.dataset = dataset
-        self.fail_max = kwargs.get('circuit_breaker_max_fail', app.config['CIRCUIT_BREAKER_MAX_CAR_PARK_FAIL'])
-        self.reset_timeout = kwargs.get('circuit_breaker_reset_timeout', app.config['CIRCUIT_BREAKER_CAR_PARK_TIMEOUT_S'])
+        self._feed_publisher = FeedPublisher(**feed_publisher) if feed_publisher else None
+        self.fail_max = kwargs.get(
+            'circuit_breaker_max_fail', app.config.get(str('CIRCUIT_BREAKER_MAX_CAR_PARK_FAIL'), 5)
+        )
+        self.reset_timeout = kwargs.get(
+            'circuit_breaker_reset_timeout', app.config.get(str('CIRCUIT_BREAKER_CAR_PARK_TIMEOUT_S'), 60)
+        )
         self.breaker = pybreaker.CircuitBreaker(fail_max=self.fail_max, reset_timeout=self.reset_timeout)
         self.log = logging.LoggerAdapter(logging.getLogger(__name__), extra={'dataset': self.dataset})
 
@@ -72,7 +78,7 @@ class CommonCarParkProvider(AbstractParkingPlacesProvider):
         properties = poi.get('properties', {})
         return properties.get('operator', '').lower() in self.operators
 
-    @cache.memoize(app.config['CACHE_CONFIGURATION'].get('TIMEOUT_CAR_PARK', 30))
+    @cache.memoize(app.config.get(str('CACHE_CONFIGURATION'), {}).get(str('TIMEOUT_CAR_PARK'), 30))
     def _call_webservice(self, request_url):
         try:
             if self.api_key:
@@ -80,25 +86,19 @@ class CommonCarParkProvider(AbstractParkingPlacesProvider):
             else:
                 headers = None
             data = self.breaker.call(requests.get, url=request_url, headers=headers, timeout=self.timeout)
-            # record in newrelic
+            json_data = data.json()
             self.record_call("OK")
-            return data.json()
-        except pybreaker.CircuitBreakerError as e:
-            msg = '{} service dead (error: {})'.format(self.provider_name, e)
-            self.log.error(msg)
-            # record in newrelic
-            utils.record_external_failure(msg, 'parking', self.provider_name)
-        except requests.Timeout as t:
-            msg = '{} service timeout (error: {})'.format(self.provider_name, t)
-            self.log.error(msg)
-            # record in newrelic
-            utils.record_external_failure(msg, 'parking', self.provider_name)
-        except:
-            msg = '{} service error'.format(self.provider_name)
-            self.log.exception(msg)
-            # record in newrelic
-            utils.record_external_failure(msg, 'parking', self.provider_name)
+            return json_data
 
+        except pybreaker.CircuitBreakerError as e:
+            self.log.error('{} service dead (error: {})'.format(self.provider_name, e))
+            self.record_call('failure', reason='circuit breaker open')
+        except requests.Timeout as t:
+            self.log.error('{} service timeout (error: {})'.format(self.provider_name, t))
+            self.record_call('failure', reason='timeout')
+        except Exception as e:
+            self.log.exception('{} service error: {}'.format(self.provider_name, e))
+            self.record_call('failure', reason=str(e))
         return None
 
     def status(self):
@@ -111,6 +111,6 @@ class CommonCarParkProvider(AbstractParkingPlacesProvider):
         """
         status can be in: ok, failure
         """
-        params = {'parking_service': self.provider_name, 'dataset': self.dataset, 'status': status}
+        params = {'parking_system_id': self.provider_name, 'dataset': self.dataset, 'status': status}
         params.update(kwargs)
-        new_relic.record_custom_event('parking_service', params)
+        new_relic.record_custom_event('parking_status', params)

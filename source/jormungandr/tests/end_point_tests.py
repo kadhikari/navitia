@@ -28,8 +28,9 @@
 # www.navitia.io
 
 from __future__ import absolute_import, print_function, unicode_literals, division
-from .tests_mechanism import AbstractTestFixture, dataset
+from .tests_mechanism import AbstractTestFixture, dataset, dataset, mock_equipment_providers
 from .check_utils import *
+
 
 @dataset({})
 class TestEmptyEndPoint(AbstractTestFixture):
@@ -51,13 +52,13 @@ class TestEmptyEndPoint(AbstractTestFixture):
             assert status in ["deprecated", "current", "testing"]
 
             if v["status"] == "current":
-                #we want one and only one 'current' api version
+                # we want one and only one 'current' api version
                 assert not current_found, "we can have only one current version of the api"
                 current_found = True
 
-            #all non templated links must be valid
-            #TODO use get_links_dict to ensure the same link format
-            #check_links(v, self.tester)
+            # all non templated links must be valid
+            # TODO use get_links_dict to ensure the same link format
+            # check_links(v, self.tester)
 
         assert current_found, "we must have one current version of the api"
 
@@ -88,11 +89,17 @@ class TestHttps(AbstractTestFixture):
         assert versions[0]['links'][0]['href'].startswith('http://')
 
 
-@dataset({'main_routing_test':{},  'main_ptref_test': {}})
+@dataset(
+    {
+        'main_routing_test': {'instance_config': {'zmq_socket_type': 'transient'}},
+        'main_ptref_test': {'instance_config': {'zmq_socket_type': 'transient'}},
+    }
+)
 class TestEndPoint(AbstractTestFixture):
     """
     Test the end point with 2 regions loaded
     """
+
     def test_coverage(self):
         json_response = self.query("/v1/coverage")
 
@@ -109,9 +116,9 @@ class TestEndPoint(AbstractTestFixture):
 
             get_not_null(region, 'status')
 
-            #shapes are not filled in dataset for the moment
-            #shape = get_not_null(region, 'shape')
-            #TODO check the shape with regexp ?
+            # shapes are not filled in dataset for the moment
+            # shape = get_not_null(region, 'shape')
+            # TODO check the shape with regexp ?
 
             region_id = get_not_null(region, 'id')
 
@@ -125,7 +132,7 @@ class TestEndPoint(AbstractTestFixture):
         assert is_valid_navitia_version_number(jormun_version)
         assert json_response['context']['timezone'] == 'Africa/Abidjan'
 
-        #we also must have an empty regions list
+        # we also must have an empty regions list
         all_status = get_not_null(json_response, 'regions')
         assert len(all_status) == 2
 
@@ -171,7 +178,50 @@ class TestEndPoint(AbstractTestFixture):
         assert response['geo_status']['street_network_sources'] == []
         assert response['geo_status']['poi_sources'] == []
 
+    def test_companies(self):
+        response = self.query('/v1/coverage/main_ptref_test/companies', display=True)
+        self.check_context(response)
+        assert len(response['companies']) == 2
+
+        # Company 1
+        assert response['companies'][0]['name'] == 'CMP1'
+        assert response['companies'][0]['id'] == 'CMP1'
+
+        # Codes for Company 1
+        assert len(response['companies'][0]['codes']) == 3
+        for idx, code in enumerate(response['companies'][0]['codes']):
+            assert code['type'] == 'cmp1_code_key_' + str(idx)
+            assert code['value'] == 'cmp1_code_value_' + str(idx)
+
+        # company 2
+        assert response['companies'][1]['name'] == 'CMP2'
+        assert response['companies'][1]['id'] == 'CMP2'
+
+        # Codes for Company 2
+        assert len(response['companies'][1]['codes']) == 1
+        assert response['companies'][1]['codes'][0]['type'] == 'cmp2_code_key_0'
+        assert response['companies'][1]['codes'][0]['value'] == 'cmp2_code_value_0'
+
     def test_lines_context(self):
         response = self.query('/v1/coverage/main_routing_test/lines', display=True)
         self.check_context(response)
+        assert response['context']['timezone'] == 'UTC'
+
+    def test_lines_head(self):
+        """
+        check that HEAD request works
+        """
+        response = self.tester.head('/v1/coverage/main_routing_test/lines')
+        assert response.status_code == 200
+        assert len(response.data) == 0
+
+    def test_equipment_reports_context(self):
+        mock_equipment_providers(
+            equipment_provider_manager=self.equipment_provider_manager("main_routing_test"),
+            data={},
+            code_types_list=["TCL_ASCENSEUR", "TCL_ESCALIER"],
+        )
+        response = self.query('/v1/coverage/main_routing_test/equipment_reports', display=True)
+        self.check_context(response)
+        assert response.get("equipment_reports", None) is not None
         assert response['context']['timezone'] == 'UTC'

@@ -1,16 +1,17 @@
 # HOWTO Release navitia
 
-You should first have a proper python env:
-```
-pip install -r requirements_release.txt -U
-```
+## "Normal" release (minor)
 
-Then for a "Normal" release (minor):
-```
+First have a look on github's repo at PRs about to be released https://github.com/CanalTP/navitia/pulls?q=is%3Apr+is%3Aclosed+sort%3Aupdated-desc
+* Check that `not_in_changelog` and `hotfix` labels are correct and none is missing on PRs that are gonna be released
+* Check that titles are correct (clear, with the component impacted)
+
+Then the script should take over:
+```sh
 cd <path/to/repo/navitia>
-# to be sure to launch the correct version of the release script
+# to be sure to trigger the correct version of the release script
 git fetch <canaltp_distant_repo_name> && git rebase <canaltp_distant_repo_name>/dev dev
-python ./script_release.py minor <canaltp_distant_repo_name>
+./release_navitia.sh minor <canaltp_distant_repo_name>
 ```
 Then follow the instructions given by the script, and also:
 * pay attention to the changelog, remove useless PR (small doc) and check that every important PR is there
@@ -20,13 +21,14 @@ Then follow the instructions given by the script, and also:
 ## Other releases
 
 ### For a major release, same as minor, but major:
-```
-python ./script_release.py major <canaltp_distant_repo_name>
+```sh
+./release_navitia.sh major <canaltp_distant_repo_name>
 ```
 
 ### For hotfix:
-```
-python ./script_release.py hotfix <canaltp_distant_repo_name>
+Note: It is preferable but not mandatory to merge the hotfix PR before.
+```sh
+./release_navitia.sh hotfix <canaltp_distant_repo_name>
 ```
 A new branch has been created <release_x.yy.z> and the changelog is opened.
 Then the process is less automated (but still, instructions are given):
@@ -38,15 +40,26 @@ Then the process is less automated (but still, instructions are given):
 	```
 * Merge the content of the new release branch with the hotfix commits to the 'release' branch:
 	```
-	git checkout release		
+	git checkout release
 	git merge --no-ff <release_x.yy.z>
 	```
 * Tag the new release:
-	``` 
+	```
 	git tag -a vx.yy.z
 	```
-* Push the release branch to the dev branch
-	``` 
+    _Minor_: You will have to populate the tag with correct blank lines if you want a nice github changelog:
+    ```
+    Version 2.57.0
+
+        * Kraken: Add ptref shortcut between physical_mode and jpps  <https://github.com/CanalTP/navitia/pull/2417>
+    ```
+* Merge the 'release' branch to the 'dev' branch:
+	```
+	git checkout dev
+	git merge --ff release
+	```
+* Push the release and dev branches to the repo
+	```
 	git push upstream release dev --tags
 	```
 

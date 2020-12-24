@@ -39,6 +39,28 @@ from jormungandr.schedule import RealTimePassage
 import xml.etree.ElementTree as et
 import aniso8601
 from datetime import datetime
+from flask_restful.inputs import boolean
+
+
+def to_bool(b):
+    """
+    encapsulate flask_restful.inputs.boolean to prevent exception if format isn't valid
+
+    >>> to_bool('true')
+    True
+    >>> to_bool('false')
+    False
+    >>> to_bool('f')
+    False
+    >>> to_bool('t')
+    False
+    >>> to_bool('bob')
+    False
+    """
+    try:
+        return boolean(b)
+    except ValueError:
+        return False
 
 
 class Siri(RealtimeProxy):
@@ -47,7 +69,7 @@ class Siri(RealtimeProxy):
 
 
     curl example to check/test that external service is working:
-    curl -X POST '{server}' -d '<x:Envelope 
+    curl -X POST '{server}' -d '<x:Envelope
     xmlns:x="http://schemas.xmlsoap.org/soap/envelope/" xmlns:wsd="http://wsdl.siri.org.uk" xmlns:siri="http://www.siri.org.uk/siri">
         <x:Header/>
         <x:Body>
@@ -61,7 +83,7 @@ class Siri(RealtimeProxy):
                     <siri:RequestTimestamp>{datetime}</siri:RequestTimestamp>
                     <siri:MessageIdentifier>IDontCare</siri:MessageIdentifier>
                     <siri:MonitoringRef>{stop_code}</siri:MonitoringRef>
-                    <siri:MaximumStopVisits>{nb_desired}</siri:MaximumStopVisits>
+                    <siri:MinimumStopVisitsPerLine>{nb_desired}</siri:MinimumStopVisitsPerLine>
                 </Request>
                 <RequestExtension xmlns=""/>
             </GetStopMonitoring>
@@ -75,7 +97,7 @@ class Siri(RealtimeProxy):
     the 'destination_id_tag' if provided on connector's init, or the 'id' otherwise.
 
     In practice it will look like:
-    curl -X POST 'http://bobito.fr:8080/ProfilSiriKidfProducer-Bobito/SiriServices' -d '<x:Envelope 
+    curl -X POST 'http://bobito.fr:8080/ProfilSiriKidfProducer-Bobito/SiriServices' -d '<x:Envelope
     xmlns:x="http://schemas.xmlsoap.org/soap/envelope/" xmlns:wsd="http://wsdl.siri.org.uk" xmlns:siri="http://www.siri.org.uk/siri">
         <x:Header/>
         <x:Body>
@@ -97,19 +119,32 @@ class Siri(RealtimeProxy):
     </x:Envelope>'
     """
 
-    def __init__(self, id, service_url, requestor_ref,
-                 object_id_tag=None, destination_id_tag=None, instance=None, timeout=10, **kwargs):
+    def __init__(
+        self,
+        id,
+        service_url,
+        requestor_ref,
+        object_id_tag=None,
+        destination_id_tag=None,
+        instance=None,
+        timeout=10,
+        **kwargs
+    ):
         self.service_url = service_url
-        self.requestor_ref = requestor_ref # login for siri
-        self.timeout = timeout  #timeout in seconds
+        self.requestor_ref = requestor_ref  # login for siri
+        self.timeout = timeout  # timeout in seconds
         self.rt_system_id = id
         self.object_id_tag = object_id_tag if object_id_tag else id
         self.destination_id_tag = destination_id_tag
         self.instance = instance
-        self.breaker = pybreaker.CircuitBreaker(fail_max=app.config.get('CIRCUIT_BREAKER_MAX_SIRI_FAIL', 5),
-                                                reset_timeout=app.config.get('CIRCUIT_BREAKER_SIRI_TIMEOUT_S', 60))
+        self.breaker = pybreaker.CircuitBreaker(
+            fail_max=app.config.get('CIRCUIT_BREAKER_MAX_SIRI_FAIL', 5),
+            reset_timeout=app.config.get('CIRCUIT_BREAKER_SIRI_TIMEOUT_S', 60),
+        )
         # A step is applied on from_datetime to discretize calls and allow caching them
-        self.from_datetime_step = kwargs.get('from_datetime_step', app.config['CACHE_CONFIGURATION'].get('TIMEOUT_SIRI', 60))
+        self.from_datetime_step = kwargs.get(
+            'from_datetime_step', app.config['CACHE_CONFIGURATION'].get('TIMEOUT_SIRI', 60)
+        )
 
     def __repr__(self):
         """
@@ -129,7 +164,18 @@ class Siri(RealtimeProxy):
         if not siri_response or siri_response.status_code != 200:
             raise RealtimeProxyError('invalid response')
         logging.getLogger(__name__).debug('siri for {}: {}'.format(stop, siri_response.text))
-        return self._get_passages(siri_response.content, route_point)
+
+        ns = {'siri': 'http://www.siri.org.uk/siri'}
+        tree = None
+        try:
+            tree = et.fromstring(siri_response.content)
+        except et.ParseError:
+            logging.getLogger(__name__).exception("invalid xml")
+            raise RealtimeProxyError('invalid xml')
+
+        self._validate_response_or_raise(tree, ns)
+
+        return self._get_passages(tree, ns, route_point)
 
     def status(self):
         return {
@@ -138,23 +184,46 @@ class Siri(RealtimeProxy):
             'circuit_breaker': {
                 'current_state': self.breaker.current_state,
                 'fail_counter': self.breaker.fail_counter,
-                'reset_timeout': self.breaker.reset_timeout
+                'reset_timeout': self.breaker.reset_timeout,
             },
         }
 
-    def _get_passages(self, xml, route_point):
-        ns = {'siri': 'http://www.siri.org.uk/siri'}
-        try:
-            root = et.fromstring(xml)
-        except et.ParseError as e:
-            logging.getLogger(__name__).exception("invalid xml")
-            raise RealtimeProxyError('invalid xml')
+    def _validate_response_or_raise(self, tree, ns):
+        stop_monitoring_delivery = tree.find('.//siri:StopMonitoringDelivery', ns)
+        if stop_monitoring_delivery is None:
+            raise RealtimeProxyError('No StopMonitoringDelivery in response')
+
+        status = stop_monitoring_delivery.find('.//siri:Status', ns)
+        if status is not None and not to_bool(status.text):
+            # Status is false: there is a problem, but we may have a valid response too...
+            # Lets log whats happening
+            error_condition = stop_monitoring_delivery.find('.//siri:ErrorCondition', ns)
+            if error_condition is not None and list(error_condition):
+                if error_condition.find('.//siri:NoInfoForTopicError', ns) is not None:
+                    # There is no data, we might be at the end of the service
+                    # OR the SIRI server doesn't update it's own data: there is no way to know
+                    # let's say it's normal and not log nor return base_schedule data
+                    return
+                # Log the error returned by SIRI, there is a node for the normalized error code
+                # and another node that holds the description
+                code = " ".join([e.tag for e in list(error_condition) if 'Description' not in e.tag])
+                description_node = error_condition.find('.//siri:Description', ns)
+                description = description_node.text if description_node is not None else None
+                logging.getLogger(__name__).warn('error in siri response: %s/%s', code, description)
+            monitored_stops = stop_monitoring_delivery.findall('.//siri:MonitoredStopVisit', ns)
+            if monitored_stops is None or len(monitored_stops) < 1:
+                # we might want to ignore error that match siri:NoInfoForTopicError,
+                # maybe it means that there is no next departure, maybe not...
+                # There is no departures and status is false: this looks like a real error...
+                raise RealtimeProxyError('response status = false')
+
+    def _get_passages(self, tree, ns, route_point):
 
         stop = route_point.fetch_stop_id(self.object_id_tag)
         line = route_point.fetch_line_id(self.object_id_tag)
         route = route_point.fetch_route_id(self.object_id_tag)
         next_passages = []
-        for visit in root.findall('.//siri:MonitoredStopVisit', ns):
+        for visit in tree.findall('.//siri:MonitoredStopVisit', ns):
             cur_stop = visit.find('.//siri:StopPointRef', ns).text
             if stop != cur_stop:
                 continue
@@ -164,46 +233,49 @@ class Siri(RealtimeProxy):
             cur_route = visit.find('.//siri:DirectionName', ns).text
             if route != cur_route:
                 continue
+            # TODO? we should ignore MonitoredCall with a DepartureStatus set to "Cancelled"
             cur_destination = visit.find('.//siri:DestinationName', ns).text
             cur_dt = visit.find('.//siri:ExpectedDepartureTime', ns).text
+            # TODO? fallback on siri:AimedDepartureTime if there is no ExpectedDepartureTime
+            # In that case we may want to set realtime to False
             cur_dt = aniso8601.parse_datetime(cur_dt)
             next_passages.append(RealTimePassage(cur_dt, cur_destination))
 
         return next_passages
 
-    @cache.memoize(app.config['CACHE_CONFIGURATION'].get('TIMEOUT_SIRI', 60))
+    @cache.memoize(app.config.get(str('CACHE_CONFIGURATION'), {}).get(str('TIMEOUT_SIRI'), 60))
     def _call_siri(self, request):
         encoded_request = request.encode('utf-8', 'backslashreplace')
-        headers = {
-            "Content-Type": "text/xml; charset=UTF-8",
-            "Content-Length": len(encoded_request)
-        }
+        headers = {"Content-Type": "text/xml; charset=UTF-8", "Content-Length": str(len(encoded_request))}
 
         logging.getLogger(__name__).debug('siri RT service, post at {}: {}'.format(self.service_url, request))
         try:
-            return self.breaker.call(requests.post,
-                                     url=self.service_url,
-                                     headers=headers,
-                                     data=encoded_request,
-                                     verify=False,
-                                     timeout=self.timeout)
+            return self.breaker.call(
+                requests.post,
+                url=self.service_url,
+                headers=headers,
+                data=encoded_request,
+                verify=False,
+                timeout=self.timeout,
+            )
         except pybreaker.CircuitBreakerError as e:
-            logging.getLogger(__name__).error('siri RT service dead, using base '
-                                              'schedule (error: {}'.format(e))
+            logging.getLogger(__name__).error(
+                'siri RT service dead, using base ' 'schedule (error: {}'.format(e)
+            )
             raise RealtimeProxyError('circuit breaker open')
         except requests.Timeout as t:
-            logging.getLogger(__name__).error('siri RT service timeout, using base '
-                                              'schedule (error: {}'.format(t))
+            logging.getLogger(__name__).error(
+                'siri RT service timeout, using base ' 'schedule (error: {}'.format(t)
+            )
             raise RealtimeProxyError('timeout')
         except Exception as e:
             logging.getLogger(__name__).exception('siri RT error, using base schedule')
             raise RealtimeProxyError(str(e))
 
-
     def _make_request(self, dt, count, monitoring_ref):
-        #we don't want to ask 1000 next departure to SIRI :)
-        count = min(count or 5, 5)# if no value defined we ask for 5 passages
-        message_identifier='IDontCare'
+        # we don't want to ask 1000 next departure to SIRI :)
+        count = min(count or 5, 5)  # if no value defined we ask for 5 passages
+        message_identifier = 'IDontCare'
         request = """<?xml version="1.0" encoding="UTF-8"?>
         <x:Envelope xmlns:x="http://schemas.xmlsoap.org/soap/envelope/"
                     xmlns:wsd="http://wsdl.siri.org.uk" xmlns:siri="http://www.siri.org.uk/siri">
@@ -219,19 +291,17 @@ class Siri(RealtimeProxy):
                 <siri:RequestTimestamp>{dt}</siri:RequestTimestamp>
                 <siri:MessageIdentifier>{MessageIdentifier}</siri:MessageIdentifier>
                 <siri:MonitoringRef>{MonitoringRef}</siri:MonitoringRef>
-                <siri:MaximumStopVisits>{count}</siri:MaximumStopVisits>
+                <siri:MinimumStopVisitsPerLine>{count}</siri:MinimumStopVisitsPerLine>
               </Request>
               <RequestExtension xmlns=""/>
             </GetStopMonitoring>
           </x:Body>
         </x:Envelope>
-        """.format(dt=floor_datetime(datetime.utcfromtimestamp(dt), self.from_datetime_step).isoformat(),
-                   count=count,
-                   RequestorRef=self.requestor_ref,
-                   MessageIdentifier=message_identifier,
-                   MonitoringRef=monitoring_ref)
+        """.format(
+            dt=floor_datetime(datetime.utcfromtimestamp(dt), self.from_datetime_step).isoformat(),
+            count=count,
+            RequestorRef=self.requestor_ref,
+            MessageIdentifier=message_identifier,
+            MonitoringRef=monitoring_ref,
+        )
         return request
-
-
-
-

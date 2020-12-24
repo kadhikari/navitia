@@ -30,6 +30,7 @@
 # www.navitia.io
 
 from __future__ import absolute_import, print_function, unicode_literals, division
+from typing import Text, List, Optional, Any
 
 import logging
 from jormungandr import utils
@@ -119,35 +120,47 @@ class RoutePoint(object):
 
     @staticmethod
     def _get_all_codes(obj, object_id_tag):
-        return [c.value for c in obj.codes if c.type == object_id_tag]
+        # type: (Any, Text) -> List[Text]
+        return list({c.value for c in obj.codes if c.type == object_id_tag})
 
     def _get_code(self, obj, object_id_tag):
+        # type: (Any, Text) -> Optional[Text]
         tags = self._get_all_codes(obj, object_id_tag)
         if len(tags) < 1:
             return None
         if len(tags) > 1:
             # there is more than one RT id for the given object, which shouldn't happen
-            logging.getLogger(__name__).warning('Object {o} has multiple RealTime codes for tag {t}'.
-                                                format(o=obj.uri, t=object_id_tag))
+            logging.getLogger(__name__).warning(
+                'Object {o} has multiple RealTime codes for tag {t}'.format(o=obj.uri, t=object_id_tag)
+            )
         return tags[0]
 
-    # Cache this ?
     def fetch_stop_id(self, object_id_tag):
+        # type: (Text) -> Optional[Text]
         return self._get_code(self.pb_stop_point, object_id_tag)
 
     def fetch_line_id(self, object_id_tag):
+        # type: (Text) -> Optional[Text]
         return self._get_code(self.pb_route.line, object_id_tag)
 
     def fetch_route_id(self, object_id_tag):
+        # type: (Text) -> Optional[Text]
         return self._get_code(self.pb_route, object_id_tag)
 
     def fetch_all_route_id(self, object_id_tag):
+        # type: (Text) -> List[Text]
         return self._get_all_codes(self.pb_route, object_id_tag)
 
+    def fetch_all_line_id(self, object_id_tag):
+        # type: (Text) -> List[Text]
+        return self._get_all_codes(self.pb_route.line, object_id_tag)
+
     def fetch_line_code(self):
+        # type: () -> Text
         return self.pb_route.line.code
 
     def fetch_line_uri(self):
+        # type: () -> Text
         return self.pb_route.line.uri
 
 
@@ -180,8 +193,9 @@ class MixedSchedule(object):
         rt_system = self.instance.realtime_proxy_manager.get(rt_system_code)
         if not rt_system:
             log.info('impossible to find {}, no realtime added'.format(rt_system_code))
-            new_relic.record_custom_event('realtime_internal_failure', {'rt_system_id': rt_system_code,
-                                                                        'message': 'no handler found'})
+            new_relic.record_custom_event(
+                'realtime_internal_failure', {'rt_system_id': rt_system_code, 'message': 'no handler found'}
+            )
             return None
         return rt_system
 
@@ -190,16 +204,21 @@ class MixedSchedule(object):
         next_rt_passages = None
 
         try:
-            next_rt_passages = rt_system.next_passage_for_route_point(route_point,
-                                                                      request['items_per_schedule'],
-                                                                      request['from_datetime'],
-                                                                      request['_current_datetime'],
-                                                                      request['duration'],
-                                                                      request['timezone'])
+            next_rt_passages = rt_system.next_passage_for_route_point(
+                route_point,
+                request['items_per_schedule'],
+                request['from_datetime'],
+                request['_current_datetime'],
+                request['duration'],
+                request['timezone'],
+            )
         except Exception as e:
-            log.exception('failure while requesting next passages to external RT system {}'.format(rt_system.rt_system_id))
-            new_relic.record_custom_event('realtime_internal_failure', {'rt_system_id': unicode(rt_system.rt_system_id),
-                                                                        'message': str(e)})
+            log.exception(
+                'failure while requesting next passages to external RT system {}'.format(rt_system.rt_system_id)
+            )
+            new_relic.record_custom_event(
+                'realtime_internal_failure', {'rt_system_id': unicode(rt_system.rt_system_id), 'message': str(e)}
+            )
 
         if next_rt_passages is None:
             log.debug('no next passages, using base schedule')
@@ -253,12 +272,16 @@ class MixedSchedule(object):
         if request['data_freshness'] != RT_PROXY_DATA_FRESHNESS:
             return resp
 
-        route_points = {RoutePoint(stop_point=passage.stop_point, route=passage.route):
-                        _create_template_from_passage(passage)
-                        for passage in resp.next_departures}
-        route_points.update((RoutePoint(rp.route, rp.stop_point),
-                             _create_template_from_pb_route_point(rp))
-                            for rp in resp.route_points)
+        route_points = {
+            RoutePoint(stop_point=passage.stop_point, route=passage.route): _create_template_from_passage(
+                passage
+            )
+            for passage in resp.next_departures
+        }
+        route_points.update(
+            (RoutePoint(rp.route, rp.stop_point), _create_template_from_pb_route_point(rp))
+            for rp in resp.route_points
+        )
 
         rt_proxy = None
         futures = []
@@ -270,7 +293,13 @@ class MixedSchedule(object):
         def worker(rt_proxy, route_point, template, request, resp):
             # Use the copied request context in greenlet
             with utils.copy_context_in_greenlet_stack(reqctx):
-                return resp, rt_proxy, route_point, template, self._get_next_realtime_passages(rt_proxy, route_point, request)
+                return (
+                    resp,
+                    rt_proxy,
+                    route_point,
+                    template,
+                    self._get_next_realtime_passages(rt_proxy, route_point, request),
+                )
 
         for route_point, template in route_points.items():
             rt_proxy = self._get_realtime_proxy(route_point)
@@ -283,9 +312,12 @@ class MixedSchedule(object):
 
         # sort
         def comparator(p1, p2):
-            return cmp(p1.stop_date_time.departure_date_time,
-                       p2.stop_date_time.departure_date_time)
+            return cmp(p1.stop_date_time.departure_date_time, p2.stop_date_time.departure_date_time)
+
         resp.next_departures.sort(comparator)
+        count = request['count']
+        if len(resp.next_departures) > count:
+            del resp.next_departures[count:]
 
         # handle pagination :
         # If real time information exist, we have to change pagination score.

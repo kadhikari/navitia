@@ -48,8 +48,9 @@ class SwaggerParamSerializer(serpy.Serializer):
     maximum = Field()
     format = Field()
     collectionFormat = Field(attr='collection_format')
-    items = LambdaField(method=lambda _, obj: SwaggerParamSerializer(obj.items).data if obj.items else None,
-                        display_none=False)
+    items = LambdaField(
+        method=lambda _, obj: SwaggerParamSerializer(obj.items).data if obj.items else None, display_none=False
+    )
 
 
 class SwaggerResponseSerializer(serpy.DictSerializer):
@@ -57,7 +58,7 @@ class SwaggerResponseSerializer(serpy.DictSerializer):
 
 
 class SwaggerMethodSerializer(serpy.Serializer):
-    consumes = LiteralField([""])
+    consumes = LiteralField(None, display_none=False)
     produces = LiteralField(["application/json"])
     responses = SwaggerResponseSerializer(attr='output_type')
     parameters = SwaggerParamSerializer(many=True)

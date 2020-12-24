@@ -32,15 +32,17 @@ from __future__ import absolute_import
 from datetime import datetime
 import pytz
 from jormungandr.realtime_schedule.realtime_proxy import RealtimeProxy
-from jormungandr.schedule import RealTimePassage
+from jormungandr.schedule import RealTimePassage, RoutePoint
 from jormungandr.utils import date_to_timestamp as d2t
 from six.moves import map
+from navitiacommon.type_pb2 import Route
 
 
 class CustomProxy(RealtimeProxy):
     """
     mock proxy that return a fixed next passages
     """
+
     def __init__(self, passages):
         self.hard_coded_passages = passages
         self.rt_system_id = 'test'
@@ -48,7 +50,9 @@ class CustomProxy(RealtimeProxy):
     def status(self):
         return None
 
-    def _get_next_passage_for_route_point(self, route_point, count=None, from_dt=None, current_dt=None, duration=None):
+    def _get_next_passage_for_route_point(
+        self, route_point, count=None, from_dt=None, current_dt=None, duration=None
+    ):
         return self.hard_coded_passages
 
 
@@ -125,6 +129,7 @@ def filter_filter_dt_all_test(mocker):
     r = proxy.next_passage_for_route_point(None, count=1, from_dt=d2t(dt("15:00")))
     assert r is None
 
+
 def filter_filter_dt_duration_test(mocker):
     mocker.patch('jormungandr.utils.get_timezone', return_value=pytz.timezone('UTC'))
     passages = [passage("10:00"), passage("11:00"), passage("12:00"), passage("13:00")]
@@ -132,3 +137,28 @@ def filter_filter_dt_duration_test(mocker):
 
     r = proxy.next_passage_for_route_point(None, from_dt=d2t(dt("10:00")), duration=3600)
     assert list(map(get_dt, r)) == [dt("10:00"), dt("11:00")]
+
+
+def test_route_point_get_code():
+    r = Route()
+    c = r.codes.add()
+    c.value = "foo"
+    c.type = "source"
+
+    c = r.codes.add()
+    c.value = "bar"
+    c.type = "extcode"
+
+    assert RoutePoint._get_all_codes(r, "source") == ["foo"]
+    assert RoutePoint._get_all_codes(r, "extcode") == ["bar"]
+    # add a duplicate, this happens in real life...
+    c = r.codes.add()
+    c.value = "foo"
+    c.type = "source"
+    assert RoutePoint._get_all_codes(r, "source") == ["foo"]
+
+    # source has two different values(think fusion)
+    c = r.codes.add()
+    c.value = "foo3"
+    c.type = "source"
+    assert RoutePoint._get_all_codes(r, "source") == ["foo", "foo3"]

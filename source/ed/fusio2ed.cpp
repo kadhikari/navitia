@@ -1,28 +1,28 @@
 /* Copyright © 2001-2014, Canal TP and/or its affiliates. All rights reserved.
-  
+
 This file is part of Navitia,
     the software to build cool stuff with public transport.
- 
+
 Hope you'll enjoy and contribute to this project,
     powered by Canal TP (www.canaltp.fr).
 Help us simplify mobility and open public transport:
     a non ending quest to the responsive locomotion way of traveling!
-  
+
 LICENCE: This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
-   
+
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Affero General Public License for more details.
-   
+
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
-  
+
 Stay tuned using
-twitter @navitia 
+twitter @navitia
 IRC #navitia on freenode
 https://groups.google.com/d/forum/navitia
 www.navitia.io
@@ -47,15 +47,12 @@ www.navitia.io
 namespace po = boost::program_options;
 namespace pt = boost::posix_time;
 
-int main(int argc, char * argv[])
-{
-    navitia::init_app();
-    auto logger = log4cplus::Logger::getInstance("log");
-
-    std::string input, date, connection_string,
-                fare_dir;
+int main(int argc, char* argv[]) {
+    std::string input, date, connection_string, fare_dir;
     double simplify_tolerance;
     po::options_description desc("Allowed options");
+
+    // clang-format off
     desc.add_options()
         ("help,h", "Show this message")
         ("date,d", po::value<std::string>(&date), "Beginning date")
@@ -68,30 +65,41 @@ int main(int argc, char * argv[])
         ("config-file", po::value<std::string>(), "Path to configuration file")
         ("connection-string", po::value<std::string>(&connection_string)->required(),
              "Database connection parameters: host=localhost "
-             "user=navitia dbname=navitia password=navitia");
+             "user=navitia dbname=navitia password=navitia")
+        ("local_syslog", "activate log redirection within local syslog")
+        ("log_comment", po::value<std::string>(), "optional field to add extra information like coverage name");
+    // clang-format on
 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
 
-    if(vm.count("version")){
-        std::cout << argv[0] << " " << navitia::config::project_version << " "
-                  << navitia::config::navitia_build_type << std::endl;
+    if (vm.count("version")) {
+        std::cout << argv[0] << " " << navitia::config::project_version << " " << navitia::config::navitia_build_type
+                  << std::endl;
         return 0;
     }
 
-    if(vm.count("config-file")){
+    // Construct logger and signal handling
+    std::string log_comment = "";
+    if (vm.count("log_comment")) {
+        log_comment = vm["log_comment"].as<std::string>();
+    }
+    navitia::init_app("fusio2ed", "DEBUG", vm.count("local_syslog"), log_comment);
+    auto logger = log4cplus::Logger::getInstance("log");
+
+    if (vm.count("config-file")) {
         std::ifstream stream;
         stream.open(vm["config-file"].as<std::string>());
-        if(!stream.is_open()){
+        if (!stream.is_open()) {
             throw navitia::exception("loading config file failed");
-        }else{
+        } else {
             po::store(po::parse_config_file(stream, desc), vm);
         }
     }
 
-    if(vm.count("help") || !vm.count("input")) {
+    if (vm.count("help") || !vm.count("input")) {
         std::cout << "Reads and inserts in database fusio files" << std::endl;
-        std::cout << desc <<  "\n";
+        std::cout << desc << "\n";
         return 1;
     }
     po::notify(vm);
@@ -112,10 +120,12 @@ int main(int argc, char * argv[])
     fusio_parser.fill(data, date);
     read = (pt::microsec_clock::local_time() - start).total_milliseconds();
 
-    LOG4CPLUS_INFO(logger, "We excluded " << data.count_too_long_connections << " connections "
-                   " because they were too long");
-    LOG4CPLUS_INFO(logger, "We excluded " << data.count_empty_connections << " connections "
-                   " because they had no duration time");
+    LOG4CPLUS_INFO(logger, "We excluded " << data.count_too_long_connections
+                                          << " connections "
+                                             " because they were too long");
+    LOG4CPLUS_INFO(logger, "We excluded " << data.count_empty_connections
+                                          << " connections "
+                                             " because they had no duration time");
 
     start = pt::microsec_clock::local_time();
     data.complete();
@@ -123,13 +133,16 @@ int main(int argc, char * argv[])
 
     LOG4CPLUS_INFO(logger, "Starting da ugly ODT hack...");
     size_t nb_hacked = 0;
-    for (auto* vj: data.vehicle_journeys) {
-        if (vj->stop_time_list.size() != 2) { continue; }
-        if (vj->stop_time_list[0]->stop_point
-            != vj->stop_time_list[1]->stop_point) {
+    for (auto* vj : data.vehicle_journeys) {
+        if (vj->stop_time_list.size() != 2) {
             continue;
         }
-        if (vj->stop_time_list[0]->departure_time != vj->stop_time_list[1]->arrival_time) { continue; }
+        if (vj->stop_time_list[0]->stop_point != vj->stop_time_list[1]->stop_point) {
+            continue;
+        }
+        if (vj->stop_time_list[0]->departure_time != vj->stop_time_list[1]->arrival_time) {
+            continue;
+        }
 
         // No, teleportation can't exist, even on a null distance!
         // You'll take 10 min, I said!
@@ -155,13 +168,12 @@ int main(int argc, char * argv[])
 
     data.normalize_uri();
 
-    if(vm.count("fare") || boost::filesystem::exists(fare_dir + "/fares.csv")) {
+    if (vm.count("fare") || boost::filesystem::exists(fare_dir + "/fares.csv")) {
         start = pt::microsec_clock::local_time();
         LOG4CPLUS_INFO(logger, "loading fare");
 
-        ed::connectors::fare_parser fareParser(data, fare_dir + "/fares.csv",
-                                           fare_dir + "/prices.csv",
-                                           fare_dir + "/od_fares.csv");
+        ed::connectors::fare_parser fareParser(data, fare_dir + "/fares.csv", fare_dir + "/prices.csv",
+                                               fare_dir + "/od_fares.csv");
         fareParser.load();
         fare = (pt::microsec_clock::local_time() - start).total_milliseconds();
     }

@@ -34,11 +34,28 @@ from .tests_mechanism import AbstractTestFixture, dataset
 from .check_utils import *
 
 
+@dataset({"main_routing_test": {'is_free': False}, "empty_routing_test": {'is_free': True}})
+class TestOverlappingBestCoverage(AbstractTestFixture):
+    """
+    Test the answer if 2 coverages are overlapping by choosing the best one according to the instances comparator (non-free first)
+    """
+
+    def test_place_by_coords_id(self):
+        response = self.query("/v1/coverage/0.000001;0.000898311281954/places/0.000001;0.000898311281954")
+        places = get_not_null(response, 'places')
+        assert len(places) == 1
+        assert places[0]['embedded_type'] == 'address'
+        assert places[0]['name'] == '42 rue kb (Condom)'
+        assert places[0]['address']['label'] == "42 rue kb (Condom)"
+        assert places[0]['address']['house_number'] == 42
+
+
 @dataset({"main_routing_test": {'is_free': True}, "empty_routing_test": {'is_free': False}})
 class TestOverlappingCoverage(AbstractTestFixture):
     """
     Test the answer if 2 coverages are overlapping
     """
+
     def test_journeys(self):
         """
         journey query with 2 overlapping coverage.
@@ -66,12 +83,14 @@ class TestOverlappingCoverage(AbstractTestFixture):
         """
         explicit call to the empty region should not work
         """
-        response, error_code = self.query_no_assert("/v1/coverage/empty_routing_test/{q}".format(q=journey_basic_query), display=False)
+        response, error_code = self.query_no_assert(
+            "/v1/coverage/empty_routing_test/{q}".format(q=journey_basic_query), display=False
+        )
 
         assert not 'journeys' in response or len(response['journeys']) == 0
         assert error_code == 404
         assert 'error' in response
-        #impossible to project the starting/ending point
+        # impossible to project the starting/ending point
         assert response['error']['id'] == 'no_origin_nor_destination'
 
     def test_journeys_on_same_error(self):
@@ -80,10 +99,11 @@ class TestOverlappingCoverage(AbstractTestFixture):
 
         there we ask for a journey in 1980, both region should return a date_out_of_bounds
         """
-        journey_query = "journeys?from={from_coord}&to={to_coord}&datetime={datetime}"\
-            .format(from_coord="0.0000898312;0.0000898312",  # coordinate of S in the dataset
-                    to_coord="0.00188646;0.00071865",  # coordinate of R in the dataset
-                    datetime="19800614T080000")
+        journey_query = "journeys?from={from_coord}&to={to_coord}&datetime={datetime}".format(
+            from_coord="0.0000898312;0.0000898312",  # coordinate of S in the dataset
+            to_coord="0.00188646;0.00071865",  # coordinate of R in the dataset
+            datetime="19800614T080000",
+        )
         response, error_code = self.query_no_assert("/v1/{q}".format(q=journey_query), display=False)
 
         assert not 'journeys' in response or len(response['journeys']) == 0
@@ -101,8 +121,9 @@ class TestOverlappingCoverage(AbstractTestFixture):
 
         we call the api with debug=true so we must get a 'debug' node with the error by regions
         """
-        response, error_code = self.query_no_assert("v1/{query}&max_duration_to_pt=20&debug=true".
-                                                    format(query=journey_basic_query), display=False)
+        response, error_code = self.query_no_assert(
+            "v1/{query}&max_duration_to_pt=20&debug=true".format(query=journey_basic_query), display=False
+        )
 
         assert not 'journeys' in response or len(response['journeys']) == 0
         assert error_code == 200  # no solution is 200
@@ -112,7 +133,10 @@ class TestOverlappingCoverage(AbstractTestFixture):
 
         assert 'debug' in response
         assert 'errors_by_region' in response['debug']
-        assert response['debug']['errors_by_region']['empty_routing_test'] == 'no origin point nor destination point'
+        assert (
+            response['debug']['errors_by_region']['empty_routing_test']
+            == 'no origin point nor destination point'
+        )
         assert response['debug']['errors_by_region']['main_routing_test'] == 'no destination point'
 
         # we also should have the region called in the debug node
@@ -129,21 +153,12 @@ class TestOverlappingCoverage(AbstractTestFixture):
     def test_coord(self):
         response = self.query("/v1/coord/0.000001;0.000898311281954")
         is_valid_address(response['address'])
-        assert(response['address']['label'] == "42 rue kb (Condom)")
+        assert response['address']['label'] == "42 rue kb (Condom)"
 
     def test_coord_geo_inv(self):
         response = self.query("/v1/coverage/0.000001;0.000898311281954/coords/0.000001;0.000898311281954")
         is_valid_address(response['address'])
-        assert(response['address']['label'] == "42 rue kb (Condom)")
-
-    def test_place_by_coords_id(self):
-        response = self.query("/v1/coverage/0.000001;0.000898311281954/places/0.000001;0.000898311281954")
-        places = get_not_null(response, 'places')
-        assert len(places) == 1
-        assert places[0]['embedded_type'] == 'address'
-        assert places[0]['name'] == '42 rue kb (Condom)'
-        assert places[0]['address']['label'] == "42 rue kb (Condom)"
-        assert places[0]['address']['house_number'] == 42
+        assert response['address']['label'] == "42 rue kb (Condom)"
 
     def test_not_found_coord(self):
         """

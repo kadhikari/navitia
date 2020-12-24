@@ -10,23 +10,11 @@ add_library(rt_handling realtime.cpp)
 add_dependencies(rt_handling protobuf_files)
 target_link_libraries(rt_handling data pb_lib protobuf)
 
-# Add Prometheus
-if(ENABLE_PROMETHEUS)
-  set(PROMETHEUS_SOURCES metrics.cpp)
-  message("-- Add Prometheus sources in kraken")
-else(ENABLE_PROMETHEUS)
-  message("-- Skip Prometheus sources in kraken")
-endif(ENABLE_PROMETHEUS)
-
-add_library(workers worker.cpp maintenance_worker.cpp configuration.cpp ${PROMETHEUS_SOURCES})
+add_library(workers worker.cpp maintenance_worker.cpp configuration.cpp metrics.cpp)
 add_dependencies(workers protobuf_files)
 target_link_libraries(workers apply_disruption make_disruption_from_chaos rt_handling ${PQXX_LIB}
-  SimpleAmqpClient disruption_api calendar_api ptreferential autocomplete georef
-  routing time_tables tcmalloc)
-
-if(ENABLE_PROMETHEUS)
-  target_link_libraries(workers prometheus-cpp)
-endif(ENABLE_PROMETHEUS)
+  SimpleAmqpClient equipment_api disruption_api calendar_api ptreferential autocomplete georef
+  routing time_tables prometheus-cpp-core prometheus-cpp-pull)
 
 add_library(fill_disruption_from_database fill_disruption_from_database.cpp)
 target_link_libraries(fill_disruption_from_database make_disruption_from_chaos data types pb_lib
@@ -38,8 +26,9 @@ target_link_libraries(kraken workers types proximitylist
     rabbitmq-static log4cplus ${Boost_THREAD_LIBRARY}
     ${Boost_DATE_TIME_LIBRARY} ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_REGEX_LIBRARY} ${Boost_CHRONO_LIBRARY}
-    ${Boost_FILESYSTEM_LIBRARY} ${Boost_SYSTEM_LIBRARY} ${Boost_PROGRAM_OPTIONS_LIBRARY} protobuf)
+    ${Boost_FILESYSTEM_LIBRARY} ${Boost_SYSTEM_LIBRARY} ${Boost_PROGRAM_OPTIONS_LIBRARY} protobuf
+    ${NAVITIA_ALLOCATOR})
 add_dependencies(kraken protobuf_files)
 
-INSTALL_TARGETS(/usr/bin/ kraken)
+install(TARGETS kraken DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 add_subdirectory(tests)

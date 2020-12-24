@@ -32,21 +32,19 @@ from jormungandr.scenarios import journey_filter as jf
 from jormungandr.scenarios.utils import DepartureJourneySorter, ArrivalJourneySorter
 import navitiacommon.response_pb2 as response_pb2
 from navitiacommon import default_values
-from jormungandr.scenarios.default import Scenario, are_equals
+from jormungandr.scenarios.new_default import sort_journeys
 from jormungandr.utils import str_to_time_stamp
 import random
 import itertools
 
 
 def empty_journeys_test():
-    scenario = Scenario()
     response = response_pb2.Response()
-    scenario.sort_journeys(response, 'arrival_time')
+    sort_journeys(response, 'arrival_time', True)
     assert not response.journeys
 
 
 def different_arrival_times_test():
-    scenario = Scenario()
     response = response_pb2.Response()
     journey1 = response.journeys.add()
     journey1.arrival_date_time = str_to_time_stamp("20140422T0800")
@@ -64,13 +62,12 @@ def different_arrival_times_test():
     journey2.sections[0].type = response_pb2.PUBLIC_TRANSPORT
     journey2.sections[0].duration = 2 * 60
 
-    scenario.sort_journeys(response, 'arrival_time')
-    assert response.journeys[0].arrival_date_time ==  str_to_time_stamp("20140422T0758")
-    assert response.journeys[1].arrival_date_time ==  str_to_time_stamp("20140422T0800")
+    sort_journeys(response, 'arrival_time', True)
+    assert response.journeys[0].arrival_date_time == str_to_time_stamp("20140422T0758")
+    assert response.journeys[1].arrival_date_time == str_to_time_stamp("20140422T0800")
 
 
 def different_departure_times_test():
-    scenario = Scenario()
     response = response_pb2.Response()
     journey1 = response.journeys.add()
     journey1.departure_date_time = str_to_time_stamp("20140422T0800")
@@ -88,13 +85,12 @@ def different_departure_times_test():
     journey2.sections[0].type = response_pb2.PUBLIC_TRANSPORT
     journey2.sections[0].duration = 2 * 60
 
-    scenario.sort_journeys(response, 'departure_time')
-    assert response.journeys[0].departure_date_time ==  str_to_time_stamp("20140422T0758")
-    assert response.journeys[1].departure_date_time ==  str_to_time_stamp("20140422T0800")
+    sort_journeys(response, 'departure_time', True)
+    assert response.journeys[0].departure_date_time == str_to_time_stamp("20140422T0758")
+    assert response.journeys[1].departure_date_time == str_to_time_stamp("20140422T0800")
 
 
 def different_duration_test():
-    scenario = Scenario()
     response = response_pb2.Response()
     journey1 = response.journeys.add()
     journey1.arrival_date_time = str_to_time_stamp("20140422T0800")
@@ -112,15 +108,14 @@ def different_duration_test():
     journey2.sections[0].type = response_pb2.PUBLIC_TRANSPORT
     journey2.sections[0].duration = 3 * 60
 
-    scenario.sort_journeys(response, 'arrival_time')
+    sort_journeys(response, 'arrival_time', True)
     assert response.journeys[0].arrival_date_time == str_to_time_stamp("20140422T0800")
     assert response.journeys[1].arrival_date_time == str_to_time_stamp("20140422T0800")
-    assert response.journeys[0].duration == 3*60
-    assert response.journeys[1].duration == 5*60
+    assert response.journeys[0].duration == 3 * 60
+    assert response.journeys[1].duration == 5 * 60
 
 
 def different_nb_transfers_test():
-    scenario = Scenario()
     response = response_pb2.Response()
     journey1 = response.journeys.add()
     journey1.arrival_date_time = str_to_time_stamp("20140422T0800")
@@ -147,17 +142,16 @@ def different_nb_transfers_test():
     journey2.sections[0].type = response_pb2.PUBLIC_TRANSPORT
     journey2.sections[0].duration = 25 * 60
 
-    scenario.sort_journeys(response, 'arrival_time')
+    sort_journeys(response, 'arrival_time', True)
     assert response.journeys[0].arrival_date_time == str_to_time_stamp("20140422T0800")
     assert response.journeys[1].arrival_date_time == str_to_time_stamp("20140422T0800")
-    assert response.journeys[0].duration == 25*60
-    assert response.journeys[1].duration == 25*60
+    assert response.journeys[0].duration == 25 * 60
+    assert response.journeys[1].duration == 25 * 60
     assert response.journeys[0].nb_transfers == 0
     assert response.journeys[1].nb_transfers == 1
 
 
 def different_duration_non_pt_test():
-    scenario = Scenario()
     response = response_pb2.Response()
     journey1 = response.journeys.add()
     journey1.arrival_date_time = str_to_time_stamp("20140422T0800")
@@ -196,7 +190,7 @@ def different_duration_non_pt_test():
     journey2.sections[3].type = response_pb2.PUBLIC_TRANSPORT
     journey2.sections[3].duration = 15 * 60
 
-    scenario.sort_journeys(response, 'arrival_time')
+    sort_journeys(response, 'arrival_time', True)
     assert response.journeys[0].arrival_date_time == str_to_time_stamp("20140422T0800")
     assert response.journeys[1].arrival_date_time == str_to_time_stamp("20140422T0800")
     assert response.journeys[0].duration == 25 * 60
@@ -204,7 +198,7 @@ def different_duration_non_pt_test():
     assert response.journeys[0].nb_transfers == 1
     assert response.journeys[1].nb_transfers == 1
 
-    #We want to have journey2 in first, this is the one with 4 sections
+    # We want to have journey2 in first, this is the one with 4 sections
     assert len(response.journeys[0].sections) == 4
     assert len(response.journeys[1].sections) == 5
 
@@ -243,65 +237,38 @@ def create_dummy_journey():
     return journey
 
 
-def test_journeys_equality_test_different_journeys():
-    """
-    test the are_equals method, applied to different journeys
-    """
-    journey1 = create_dummy_journey()
-    modified_section = journey1.sections[0]
-    modified_section.origin.uri = "stop_point_10"
-    modified_section.destination.uri = "stop_point_22"
-    modified_section.vehicle_journey.uri = "vj_tata"
-
-    journey2 = create_dummy_journey()
-
-    assert not are_equals(journey1, journey2)
-
-
-def test_journeys_equality_test_different_nb_sections():
-    """
-    test the are_equals method, applied to journeys with different number of sections
-    """
-    journey1 = create_dummy_journey()
-    modified_section = journey1.sections.add()
-    modified_section.origin.uri = "stop_point_10"
-    modified_section.destination.uri = "stop_point_22"
-    modified_section.vehicle_journey.uri = "vj_tata"
-
-    journey2 = create_dummy_journey()
-
-    assert not are_equals(journey1, journey2)
-
-
-def test_journeys_equality_test_same_journeys():
-    """No question, a  journey must be equal to self"""
-    journey1 = create_dummy_journey()
-
-    assert are_equals(journey1, journey1)
-
-    #and likewise if not the same memory address
-    journey2 = create_dummy_journey()
-    assert are_equals(journey1, journey2)
-
-
 def journey_pairs_gen(list_responses):
     return itertools.combinations(jf.get_qualified_journeys(list_responses), 2)
 
-def test_journeys_equality_test_almost_same_journeys():
-    """
-    test the are_equals method, applied to different journeys, but with meaningless differences
-    """
-    journey1 = create_dummy_journey()
-    modified_section = journey1.sections[4]
-    modified_section.duration = 1337
 
-    journey2 = create_dummy_journey()
-    modified_section = journey2.sections[0]
-    modified_section.length = 42
-    modified_section = journey2.sections[1]
-    modified_section.transfer_type = response_pb2.stay_in
+def test_get_qualified_journeys():
+    responses = [response_pb2.Response()]
+    journey1 = responses[0].journeys.add()
+    journey1.tags.append("a_tag")
 
-    assert are_equals(journey1, journey2)
+    journey2 = responses[0].journeys.add()
+    journey2.tags.append("to_delete")
+
+    journey3 = responses[0].journeys.add()
+    journey3.tags.append("another_tag")
+    journey3.tags.append("to_delete")
+
+    for qualified in jf.get_qualified_journeys(responses):
+        assert qualified.tags[0] == 'a_tag'
+
+
+def test_num_qualifed_journeys():
+    responses = [response_pb2.Response()]
+    journey1 = responses[0].journeys.add()
+    journey1.tags.append("a_tag")
+
+    journey2 = responses[0].journeys.add()
+    journey2.tags.append("to_delete")
+
+    journey3 = responses[0].journeys.add()
+    journey3.tags.append("another_tag")
+
+    assert jf.nb_qualifed_journeys(responses) == 2
 
 
 def test_similar_journeys():
@@ -614,6 +581,24 @@ def test_similar_journeys_bss_park():
     assert jf.compare(journey1, journey2, jf.similar_journeys_vj_generator)
 
 
+def test_similar_journeys_crowfly_rs():
+    """
+    We have to consider a journey with
+    CROWFLY WALK to be different than CROWFLY Ridesharing
+    """
+    journey1 = response_pb2.Journey()
+    journey1.sections.add()
+    journey1.sections[-1].type = response_pb2.CROW_FLY
+    journey1.sections[-1].street_network.mode = response_pb2.Walking
+
+    journey2 = response_pb2.Journey()
+    journey2.sections.add()
+    journey2.sections[-1].type = response_pb2.CROW_FLY
+    journey2.sections[-1].street_network.mode = response_pb2.Ridesharing
+
+    assert not jf.compare(journey1, journey2, jf.similar_journeys_vj_generator)
+
+
 def test_departure_sort():
     """
     we want to sort by departure hour, then by duration
@@ -653,11 +638,12 @@ def test_departure_sort():
 
     compartor = DepartureJourneySorter(True)
     result.sort(compartor)
-    assert result[0] ==  j1
-    assert result[1] ==  j2
-    assert result[2] ==  j5
-    assert result[3] ==  j4
-    assert result[4] ==  j3
+    assert result[0] == j1
+    assert result[1] == j2
+    assert result[2] == j5
+    assert result[3] == j4
+    assert result[4] == j3
+
 
 def test_arrival_sort():
     """
@@ -698,11 +684,12 @@ def test_arrival_sort():
 
     comparator = ArrivalJourneySorter(True)
     result.sort(comparator)
-    assert result[0] ==  j1
-    assert result[1] ==  j2
-    assert result[2] ==  j5
-    assert result[3] ==  j4
-    assert result[4] ==  j3
+    assert result[0] == j1
+    assert result[1] == j2
+    assert result[2] == j5
+    assert result[3] == j4
+    assert result[4] == j3
+
 
 def test_heavy_journey_walking():
     """
@@ -716,6 +703,7 @@ def test_heavy_journey_walking():
 
     f = jf.FilterTooShortHeavyJourneys(min_bike=10, min_car=20)
     assert f.filter_func(journey)
+
 
 def test_heavy_journey_bike():
     """
@@ -736,10 +724,12 @@ def test_heavy_journey_bike():
     f = jf.FilterTooShortHeavyJourneys(min_bike=10, min_car=20, orig_modes=['bike', 'walking'])
     assert not f.filter_func(journey)
 
+
 def test_filter_wrapper():
     """
     Testing that filter_wrapper is fine (see filter_wrapper doc)
     """
+
     class LoveHateFilter(jf.SingleJourneyFilter):
         message = 'i_dont_like_you'
 
@@ -809,6 +799,27 @@ def test_heavy_journey_car():
 
     f = jf.FilterTooShortHeavyJourneys(min_bike=10, min_car=20, orig_modes=['bike', 'walking'])
     assert not f.filter_func(journey)
+
+
+def test_heavy_journey_taxi():
+    """
+    the first time the duration of the taxi section is superior to the min value, so we keep the journey
+    on the second test the duration is inferior to the min, so we delete the journey
+    """
+    journey = response_pb2.Journey()
+    journey.sections.add()
+    journey.sections[-1].type = response_pb2.STREET_NETWORK
+    journey.sections[-1].street_network.mode = response_pb2.Taxi
+    journey.durations.taxi = journey.sections[-1].duration = 25
+
+    f = jf.FilterTooShortHeavyJourneys(min_bike=10, min_taxi=20)
+    assert f.filter_func(journey)
+
+    journey.durations.taxi = journey.sections[-1].duration = 15
+
+    f = jf.FilterTooShortHeavyJourneys(min_bike=10, min_taxi=20, orig_modes=['bike', 'walking'])
+    assert not f.filter_func(journey)
+
 
 def test_heavy_journey_bss():
     """
@@ -943,6 +954,7 @@ def test_activate_deactivate_min_bike():
     f = jf.FilterTooShortHeavyJourneys(min_bike=8, orig_modes=['bike'], dest_modes=['bike', 'walking'])
     assert not f.filter_func(journey)
 
+
 def test_activate_deactivate_min_car():
     """
 
@@ -1039,4 +1051,103 @@ def test_activate_deactivate_min_car():
     journey.durations.car = 12
 
     f = jf.FilterTooShortHeavyJourneys(min_car=8, orig_modes=['car'], dest_modes=['car', 'walking'])
+    assert not f.filter_func(journey)
+
+
+def test_activate_deactivate_min_taxi():
+    """
+
+      A                 B                           C            D
+      *................*============================*.............*
+      A: origin
+      D: Destination
+      A->B : taxi
+      B->C : public transport
+      C->D : taxi
+
+    """
+    # case 1: request without origin_mode and destination_mode
+
+    journey = response_pb2.Journey()
+    journey.sections.add()
+    journey.sections[-1].type = response_pb2.STREET_NETWORK
+    journey.sections[-1].street_network.mode = response_pb2.Taxi
+    journey.sections[-1].duration = 5
+
+    journey.sections.add()
+    journey.sections[-1].type = response_pb2.PUBLIC_TRANSPORT
+    journey.sections[-1].street_network.mode = response_pb2.PUBLIC_TRANSPORT
+    journey.sections[-1].duration = 35
+
+    journey.sections.add()
+    journey.sections[-1].type = response_pb2.STREET_NETWORK
+    journey.sections[-1].street_network.mode = response_pb2.Taxi
+    journey.sections[-1].duration = 7
+
+    journey.durations.taxi = 12
+
+    f = jf.FilterTooShortHeavyJourneys(min_taxi=10)
+    assert f.filter_func(journey)
+
+    # case 2: request without origin_mode
+    journey.sections[-1].duration = 15
+    journey.durations.taxi = 20
+
+    f = jf.FilterTooShortHeavyJourneys(min_taxi=8, dest_modes=['taxi', 'walking'])
+    assert f.filter_func(journey)
+
+    # case 3: request without destination_mode
+    journey.sections[0].duration = 15
+    journey.sections[-1].duration = 5
+    journey.durations.taxi = 20
+
+    f = jf.FilterTooShortHeavyJourneys(min_taxi=8, orig_modes=['taxi', 'walking'])
+    assert f.filter_func(journey)
+
+    # case 4: request without walking in origin_mode
+    journey.sections[0].duration = 5
+    journey.sections[-1].duration = 15
+    journey.durations.taxi = 20
+
+    f = jf.FilterTooShortHeavyJourneys(min_taxi=8, orig_modes=['taxi'])
+    assert f.filter_func(journey)
+
+    # case 5: request without walking in destination_mode
+    journey.sections[0].duration = 15
+    journey.sections[-1].duration = 5
+    journey.durations.taxi = 20
+
+    f = jf.FilterTooShortHeavyJourneys(min_taxi=8, dest_modes=['taxi'])
+    assert f.filter_func(journey)
+
+    # case 6: request with taxi only in origin_mode destination_mode
+    journey.sections[0].duration = 15
+    journey.sections[-1].duration = 14
+    journey.durations.taxi = 29
+
+    f = jf.FilterTooShortHeavyJourneys(min_taxi=17, orig_modes=['taxi'], dest_modes=['taxi'])
+    assert f.filter_func(journey)
+
+    # case 7: request with walking in destination_mode
+    journey.sections[0].duration = 15
+    journey.sections[-1].duration = 5
+    journey.durations.taxi = 20
+
+    f = jf.FilterTooShortHeavyJourneys(min_taxi=8, dest_modes=['taxi', 'walking'])
+    assert not f.filter_func(journey)
+
+    # case 8: request with walking in origin_mode
+    journey.sections[0].duration = 5
+    journey.sections[-1].duration = 15
+    journey.durations.taxi = 20
+
+    f = jf.FilterTooShortHeavyJourneys(min_taxi=8, orig_modes=['taxi', 'walking'])
+    assert not f.filter_func(journey)
+
+    # case 9: request with bike in origin_mode and bike, walking in destination_mode
+    journey.sections[0].duration = 5
+    journey.sections[-1].duration = 7
+    journey.durations.taxi = 12
+
+    f = jf.FilterTooShortHeavyJourneys(min_taxi=8, orig_modes=['taxi'], dest_modes=['taxi', 'walking'])
     assert not f.filter_func(journey)

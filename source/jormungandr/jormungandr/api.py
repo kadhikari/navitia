@@ -41,21 +41,9 @@ import ujson
 import logging
 from jormungandr.new_relic import record_custom_parameter
 from jormungandr.authentication import get_user, get_token, get_app_name, get_used_coverages
+from jormungandr._version import __version__
 import six
 
-if rest_api.app.config.get('PATCH_WITH_GEVENT_SOCKET', False):
-    logger = logging.getLogger('jormungandr.patch_gevent')
-    logger.info("Attention! You'are patching requests.packages.urllib3.connection.connection.socket with gevent.socket,"
-                "parallel http/https calling by requests is activated")
-    # This line replaces the gevent.monkey.patch_socket()
-    # Note that "monkey_patch" only patches on http request because we want asynchronisation on that,
-    # but we don't want that for reddis because it may cause performance regression
-    import requests
-    import gevent.socket
-    requests.packages.urllib3.connection.connection.socket = gevent.socket
-
-    from gevent import monkey
-    monkey.patch_ssl()
 
 @rest_api.representation("text/jsonp")
 @rest_api.representation("application/jsonp")
@@ -79,14 +67,22 @@ def output_json(data, code, headers=None):
 def access_log(response, *args, **kwargs):
     logger = logging.getLogger('jormungandr.access')
     query_string = request.query_string.decode(request.url_charset, 'replace')
-    d = {'method': request.method, 'path': request.path, 'query_string': query_string, 'status': response.status_code}
+    d = {
+        'method': request.method,
+        'path': request.path,
+        'query_string': query_string,
+        'status': response.status_code,
+        'external_request_id': request.headers.get('x-request-id'),
+    }
     logger.info(u'"%(method)s %(path)s?%(query_string)s" %(status)s', d, extra=d)
     return response
+
 
 @app.after_request
 def add_request_id(response, *args, **kwargs):
     response.headers['navitia-request-id'] = request.id
     return response
+
 
 @app.after_request
 def add_info_newrelic(response, *args, **kwargs):
@@ -98,6 +94,7 @@ def add_info_newrelic(response, *args, **kwargs):
         if user:
             record_custom_parameter('user_id', str(user.id))
         record_custom_parameter('token_name', app_name)
+        record_custom_parameter('version', __version__)
         coverages = get_used_coverages()
         if coverages:
             record_custom_parameter('coverage', coverages[0])
@@ -105,7 +102,6 @@ def add_info_newrelic(response, *args, **kwargs):
         logger = logging.getLogger(__name__)
         logger.exception('error while reporting to newrelic:')
     return response
-
 
 
 # If modules are configured, then load and run them
@@ -117,16 +113,24 @@ if 'MODULES' in rest_api.app.config:
         rest_api.module_loader.load(module(rest_api, prefix))
     rest_api.module_loader.run()
 else:
-    rest_api.app.logger.warning('MODULES isn\'t defined in config. No module will be loaded, then no route '
-                                'will be defined.')
+    rest_api.app.logger.warning(
+        'MODULES isn\'t defined in config. No module will be loaded, then no route ' 'will be defined.'
+    )
 
 if rest_api.app.config.get('ACTIVATE_PROFILING'):
     rest_api.app.logger.warning('=======================================================')
     rest_api.app.logger.warning('activation of the profiling, all query will be slow !')
+    rest_api.app.logger.warning('For better result you can do the calibration by setting PROFILING_BIAS!')
+    rest_api.app.logger.warning('https://docs.python.org/2.7/library/profile.html#calibration')
     rest_api.app.logger.warning('=======================================================')
+    import profile
+
     from werkzeug.contrib.profiler import ProfilerMiddleware
+
     rest_api.app.config['PROFILE'] = True
     f = open('/tmp/profiler.log', 'a')
-    rest_api.app.wsgi_app = ProfilerMiddleware(rest_api.app.wsgi_app, f, restrictions=[80], profile_dir='/tmp/profile')
+    rest_api.app.wsgi_app = ProfilerMiddleware(
+        rest_api.app.wsgi_app, f, restrictions=[80], profile_dir='/tmp/profile'
+    )
 
 index(rest_api)

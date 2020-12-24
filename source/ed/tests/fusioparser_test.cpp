@@ -43,9 +43,9 @@ www.navitia.io
 namespace bg = boost::gregorian;
 
 struct logger_initialized {
-    logger_initialized()   { init_logger(); }
+    logger_initialized() { navitia::init_logger(); }
 };
-BOOST_GLOBAL_FIXTURE( logger_initialized );
+BOOST_GLOBAL_FIXTURE(logger_initialized);
 
 const std::string ntfs_path = std::string(navitia::config::fixtures_dir) + "/ed/ntfs";
 
@@ -57,7 +57,7 @@ BOOST_AUTO_TEST_CASE(parse_small_ntfs_dataset) {
 
     parser.fill(data);
 
-    //we check that the data have been correctly loaded
+    // we check that the data have been correctly loaded
     BOOST_REQUIRE_EQUAL(data.networks.size(), 1);
     BOOST_CHECK_EQUAL(data.networks[0]->name, "ligne flixible");
     BOOST_CHECK_EQUAL(data.networks[0]->uri, "ligneflexible");
@@ -82,9 +82,9 @@ BOOST_AUTO_TEST_CASE(parse_small_ntfs_dataset) {
     BOOST_CHECK_EQUAL(data.datasets[0]->system, "dataset_system1");
     BOOST_CHECK_EQUAL(data.vehicle_journeys[0]->dataset->uri, "dataset_id1");
 
-    //timzeone check
-    //no timezone is given for the stop area in this dataset, to the agency time zone (the default one) is taken
-    for (auto sa: data.stop_areas) {
+    // timzeone check
+    // no timezone is given for the stop area in this dataset, to the agency time zone (the default one) is taken
+    for (auto sa : data.stop_areas) {
         BOOST_CHECK_EQUAL(sa->time_zone_with_name.first, "Europe/Paris");
     }
 
@@ -103,44 +103,66 @@ BOOST_AUTO_TEST_CASE(parse_small_ntfs_dataset) {
     BOOST_CHECK_EQUAL(data.stop_points[0]->accessible(has_properties.properties()), true);
     BOOST_CHECK_EQUAL(data.stop_points[1]->accessible(has_properties.properties()), false);
 
-    for (int i = 1; i < 8; i++){
+    for (int i = 1; i < 8; i++) {
         BOOST_CHECK_EQUAL(data.stop_points[i]->accessible(has_properties.properties()), false);
     }
 
-    //we should have one zonal stop point
-    BOOST_REQUIRE_EQUAL(boost::count_if(data.stop_points, [](const types::StopPoint* sp) {
-                            return sp->is_zonal && sp->name == "Beleymas" && sp->area;
-                        }), 1);
+    // we should have one zonal stop point
+    BOOST_REQUIRE_EQUAL(
+        boost::count_if(data.stop_points,
+                        [](const types::StopPoint* sp) { return sp->is_zonal && sp->name == "Beleymas" && sp->area; }),
+        1);
 
     BOOST_REQUIRE_EQUAL(data.lines.size(), 4);
     BOOST_REQUIRE_EQUAL(data.routes.size(), 4);
 
-    //chekc comments
+    // object_codes
+    BOOST_REQUIRE_EQUAL(data.object_codes.size(), 21);
+    // routes
+    for (uint i = 0; i < data.routes.size(); ++i) {
+        auto obj_codes_routes_map = data.object_codes[ed::types::make_pt_object(data.routes[i])];
+        BOOST_REQUIRE_EQUAL(obj_codes_routes_map.size(), 1);
+        for (const auto& obj_codes : obj_codes_routes_map) {
+            BOOST_CHECK_EQUAL(obj_codes.second[0], "route_" + std::to_string(i + 1));
+        }
+    }
+    // companies
+    auto obj_codes_map = data.object_codes[ed::types::make_pt_object(data.companies[0])];
+    BOOST_REQUIRE_EQUAL(obj_codes_map.size(), 1);
+    for (const auto& obj_codes : obj_codes_map) {
+        BOOST_CHECK_EQUAL(obj_codes.second[0], "A");
+        BOOST_CHECK_EQUAL(obj_codes.second[1], "B");
+    }
+    obj_codes_map = data.object_codes[ed::types::make_pt_object(data.companies[1])];
+    BOOST_REQUIRE_EQUAL(obj_codes_map.size(), 1);
+    for (const auto& obj_codes : obj_codes_map) {
+        BOOST_CHECK_EQUAL(obj_codes.second[0], "A");
+    }
+
+    // check comments
     BOOST_REQUIRE_EQUAL(data.comment_by_id.size(), 2);
     BOOST_CHECK_EQUAL(data.comment_by_id["bob"], "bob is in the kitchen");
     BOOST_CHECK_EQUAL(data.comment_by_id["bobette"], "test comment");
 
-    //7 objects have comments
-    //the file contains wrongly formated comments, but they are skiped
+    // 7 objects have comments
+    // the file contains wrongly formated comments, but they are skiped
     BOOST_REQUIRE_EQUAL(data.comments.size(), 5);
 
     std::map<ed::types::pt_object_header, std::vector<std::string>> expected_comments = {
         {ed::types::make_pt_object(data.routes[0]), {"bob"}},
         {ed::types::make_pt_object(data.vehicle_journeys[4]), {"bobette"}},
-        {ed::types::make_pt_object(data.vehicle_journeys[5]), {"bobette"}}, //split too
+        {ed::types::make_pt_object(data.vehicle_journeys[5]), {"bobette"}},  // split too
         {ed::types::make_pt_object(data.stop_areas[2]), {"bob"}},
-        {ed::types::make_pt_object(data.stop_points[3]), {"bobette"}}
-    };
+        {ed::types::make_pt_object(data.stop_points[3]), {"bobette"}}};
 
-    BOOST_CHECK_EQUAL_COLLECTIONS(data.comments.begin(), data.comments.end(),
-                                  expected_comments.begin(), expected_comments.end());
-
+    BOOST_CHECK_EQUAL_COLLECTIONS(data.comments.begin(), data.comments.end(), expected_comments.begin(),
+                                  expected_comments.end());
 
     std::map<const ed::types::StopTime*, std::vector<std::string>> expected_st_comments = {
-            {{data.stops[6]}, {"bob", "bobette"}}, //stoptimes are split
-            {{data.stops[7]}, {"bob", "bobette"}},
-            {{data.stops[12]}, {"bob"}},
-            {{data.stops[13]}, {"bob"}},
+        {{data.stops[6]}, {"bob", "bobette"}},  // stoptimes are split
+        {{data.stops[7]}, {"bob", "bobette"}},
+        {{data.stops[12]}, {"bob"}},
+        {{data.stops[13]}, {"bob"}},
     };
 
     BOOST_CHECK_EQUAL_COLLECTIONS(data.stoptime_comments.begin(), data.stoptime_comments.end(),
@@ -160,7 +182,7 @@ BOOST_AUTO_TEST_CASE(parse_small_ntfs_dataset) {
     BOOST_REQUIRE_EQUAL(vj->stop_time_list[3]->headsign, "N2");
     BOOST_REQUIRE_EQUAL(vj->stop_time_list[4]->headsign, "N2");
 
-    //vj_headsign
+    // vj_headsign
     BOOST_REQUIRE_EQUAL(vj->name, "vehiclejourney1");
 
     navitia::type::hasVehicleProperties has_vehicle_properties;
@@ -174,20 +196,17 @@ BOOST_AUTO_TEST_CASE(parse_small_ntfs_dataset) {
     }
 
     // feed_info
-    std::map<std::string, std::string> feed_info_test ={
-        {"feed_start_date","20150325"},
-        {"feed_end_date","20150826"},
-        {"feed_publisher_name","Ile de France open data"},
-        {"feed_publisher_url","http://www.canaltp.fr"},
-        {"feed_license","ODBL"},
-        {"feed_creation_datetime","20150415T153234"}
-    };
-    BOOST_CHECK_EQUAL_COLLECTIONS(data.feed_infos.begin(), data.feed_infos.end(),
-                                  feed_info_test.begin(), feed_info_test.end());
+    std::map<std::string, std::string> feed_info_test = {{"feed_start_date", "20150325"},
+                                                         {"feed_end_date", "20150826"},
+                                                         {"feed_publisher_name", "Ile de France open data"},
+                                                         {"feed_publisher_url", "http://www.canaltp.fr"},
+                                                         {"feed_license", "ODBL"},
+                                                         {"feed_creation_datetime", "20150415T153234"}};
+    BOOST_CHECK_EQUAL_COLLECTIONS(data.feed_infos.begin(), data.feed_infos.end(), feed_info_test.begin(),
+                                  feed_info_test.end());
 
-    BOOST_REQUIRE_EQUAL(data.meta.production_date,
-                        boost::gregorian::date_period(boost::gregorian::date(2015, 3, 25),
-                                                      boost::gregorian::date(2015, 8, 27)));
+    BOOST_REQUIRE_EQUAL(data.meta.production_date, boost::gregorian::date_period(boost::gregorian::date(2015, 3, 25),
+                                                                                 boost::gregorian::date(2015, 8, 27)));
 
     /* Line groups.
      * 3 groups in the file, 3 use cases :
@@ -227,7 +246,7 @@ BOOST_AUTO_TEST_CASE(parse_small_ntfs_dataset) {
     const types::VehicleJourney* vj1 = data.vehicle_journeys.at(6);
 
     // headsign of vj and stop_times
-    BOOST_REQUIRE_EQUAL(vj1->name.substr(0,6), "NULL");
+    BOOST_REQUIRE_EQUAL(vj1->name.substr(0, 6), "NULL");
 
     BOOST_REQUIRE_EQUAL(vj1->stop_time_list[0]->headsign, "HS");
     BOOST_REQUIRE_EQUAL(vj1->stop_time_list[1]->headsign, "HS");
@@ -272,7 +291,6 @@ BOOST_AUTO_TEST_CASE(complete_production_date_without_beginning_date) {
 
     bg::date_period period = parser.complete_production_date(beginning_date, start_date, end_date);
     BOOST_CHECK_EQUAL(period, bg::date_period(start_date, end_date + bg::days(1)));
-
 }
 
 /*
@@ -297,7 +315,6 @@ production date :                                   |---------------------------
 
     BOOST_CHECK_EQUAL(period, bg::date_period(start_date, end_date + bg::days(1)));
 
-
     /*
 beginning_date                                          20150107
                                                            |
@@ -316,7 +333,6 @@ production date :                                          |--------------------
     BOOST_CHECK_EQUAL(period, bg::date_period(bg::date(2015, 1, 7), end_date + bg::days(1)));
 }
 
-
 /*
  Test start_date and en_date in file feed_info, with beginning_date
 
@@ -329,32 +345,25 @@ production date :                                   |---------------------------
 
  */
 BOOST_AUTO_TEST_CASE(ntfs_with_feed_start_end_date_1) {
-
     using namespace ed;
-
 
     ed::Data data;
     ed::connectors::FusioParser parser(ntfs_path);
     parser.fill(data, "20150310");
 
     // feed_info
-    std::map<std::string, std::string> feed_info_test ={
-        {"feed_start_date","20150325"},
-        {"feed_end_date","20150826"},
-        {"feed_publisher_name","Ile de France open data"},
-        {"feed_publisher_url","http://www.canaltp.fr"},
-        {"feed_license","ODBL"},
-        {"feed_creation_datetime","20150415T153234"}
-    };
-    BOOST_CHECK_EQUAL_COLLECTIONS(data.feed_infos.begin(), data.feed_infos.end(),
-                                  feed_info_test.begin(), feed_info_test.end());
+    std::map<std::string, std::string> feed_info_test = {{"feed_start_date", "20150325"},
+                                                         {"feed_end_date", "20150826"},
+                                                         {"feed_publisher_name", "Ile de France open data"},
+                                                         {"feed_publisher_url", "http://www.canaltp.fr"},
+                                                         {"feed_license", "ODBL"},
+                                                         {"feed_creation_datetime", "20150415T153234"}};
+    BOOST_CHECK_EQUAL_COLLECTIONS(data.feed_infos.begin(), data.feed_infos.end(), feed_info_test.begin(),
+                                  feed_info_test.end());
 
-    BOOST_REQUIRE_EQUAL(data.meta.production_date,
-                        boost::gregorian::date_period(boost::gregorian::date(2015, 3, 25),
-                                                      boost::gregorian::date(2015, 8, 27)));
-
+    BOOST_REQUIRE_EQUAL(data.meta.production_date, boost::gregorian::date_period(boost::gregorian::date(2015, 3, 25),
+                                                                                 boost::gregorian::date(2015, 8, 27)));
 }
-
 
 /*
  Test start_date and en_date in file feed_info, with beginning_date
@@ -375,21 +384,17 @@ BOOST_AUTO_TEST_CASE(ntfs_with_feed_start_end_date_2) {
     parser.fill(data, "20150327");
 
     // feed_info
-    std::map<std::string, std::string> feed_info_test ={
-        {"feed_start_date","20150325"},
-        {"feed_end_date","20150826"},
-        {"feed_publisher_name","Ile de France open data"},
-        {"feed_publisher_url","http://www.canaltp.fr"},
-        {"feed_license","ODBL"},
-        {"feed_creation_datetime","20150415T153234"}
-    };
-    BOOST_CHECK_EQUAL_COLLECTIONS(data.feed_infos.begin(), data.feed_infos.end(),
-                                  feed_info_test.begin(), feed_info_test.end());
-    BOOST_REQUIRE_EQUAL(data.meta.production_date,
-                        boost::gregorian::date_period(boost::gregorian::date(2015, 3, 27),
-                                                      boost::gregorian::date(2015, 8, 27)));
+    std::map<std::string, std::string> feed_info_test = {{"feed_start_date", "20150325"},
+                                                         {"feed_end_date", "20150826"},
+                                                         {"feed_publisher_name", "Ile de France open data"},
+                                                         {"feed_publisher_url", "http://www.canaltp.fr"},
+                                                         {"feed_license", "ODBL"},
+                                                         {"feed_creation_datetime", "20150415T153234"}};
+    BOOST_CHECK_EQUAL_COLLECTIONS(data.feed_infos.begin(), data.feed_infos.end(), feed_info_test.begin(),
+                                  feed_info_test.end());
+    BOOST_REQUIRE_EQUAL(data.meta.production_date, boost::gregorian::date_period(boost::gregorian::date(2015, 3, 27),
+                                                                                 boost::gregorian::date(2015, 8, 27)));
 }
-
 
 BOOST_AUTO_TEST_CASE(sync_ntfs) {
     ed::Data data;
@@ -397,13 +402,13 @@ BOOST_AUTO_TEST_CASE(sync_ntfs) {
     ed::connectors::FusioParser parser(ntfs_path + "_v5");
     parser.fill(data, "20150327");
 
-    //we check that the data have been correctly loaded
+    // we check that the data have been correctly loaded
     BOOST_REQUIRE_EQUAL(data.lines.size(), 4);
     BOOST_REQUIRE_EQUAL(data.stop_point_connections.size(), 1);
     BOOST_REQUIRE_EQUAL(data.stop_points.size(), 8);
     BOOST_CHECK_EQUAL(data.lines[0]->name, "ligne A Flexible");
     BOOST_CHECK_EQUAL(data.lines[0]->uri, "l1");
-    BOOST_CHECK_EQUAL(data.lines[0]->text_color, "FFD700");    
+    BOOST_CHECK_EQUAL(data.lines[0]->text_color, "FFD700");
     BOOST_REQUIRE_EQUAL(data.routes.size(), 4);
 
     navitia::type::hasProperties has_properties;
@@ -412,7 +417,7 @@ BOOST_AUTO_TEST_CASE(sync_ntfs) {
     BOOST_CHECK_EQUAL(data.stop_point_connections[0]->accessible(has_properties.properties()), true);
     BOOST_CHECK_EQUAL(data.stop_points[0]->accessible(has_properties.properties()), true);
 
-    for (int i = 1; i < 8; i++){
+    for (int i = 1; i < 8; i++) {
         BOOST_CHECK_EQUAL(data.stop_points[i]->accessible(has_properties.properties()), false);
     }
 
@@ -424,7 +429,7 @@ BOOST_AUTO_TEST_CASE(sync_ntfs) {
     BOOST_CHECK_EQUAL(data.datasets[0]->validation_period, boost::gregorian::date_period("20150826"_d, "20150926"_d));
     BOOST_CHECK_EQUAL(data.datasets[0]->realtime_level == nt::RTLevel::Base, true);
     BOOST_CHECK_EQUAL(data.datasets[0]->system, "obiti");
-    
+
     // accepted side-effect (no link) as ntfs_v5 fixture does not contain datasets.txt, which is now required
     BOOST_CHECK(data.vehicle_journeys[0]->dataset == nullptr);
 
@@ -435,4 +440,45 @@ BOOST_AUTO_TEST_CASE(sync_ntfs) {
 
     vj = data.vehicle_journeys.back();
     BOOST_CHECK_EQUAL(vj->accessible(has_vehicle_properties.vehicles()), false);
+}
+
+BOOST_AUTO_TEST_CASE(admin_stations_retrocompatibilty_tests) {
+    // admin_stations.txt file contains "stop_id" and "station_id"
+    // Following the norm, we only read "stop_id"
+    {
+        ed::Data data;
+        ed::connectors::FusioParser parser(ntfs_path);
+        parser.fill(data);
+        BOOST_REQUIRE_EQUAL(data.admin_stop_areas.size(), 1);
+        BOOST_CHECK_EQUAL(data.admin_stop_areas[0]->admin, "admin:A");
+        BOOST_REQUIRE_EQUAL(data.admin_stop_areas[0]->stop_area.size(), 1);
+        BOOST_CHECK_EQUAL(data.admin_stop_areas[0]->stop_area[0]->name, "Arrêt A");
+        BOOST_CHECK_EQUAL(data.admin_stop_areas[0]->stop_area[0]->uri, "SA:A");
+    }
+
+    // admin_stations.txt file contains only "stop_id"
+    {
+        ed::Data data;
+        ed::connectors::FusioParser parser(ntfs_path + "_dst");
+        parser.fill(data);
+        BOOST_REQUIRE_EQUAL(data.admin_stop_areas.size(), 1);
+        BOOST_CHECK_EQUAL(data.admin_stop_areas[0]->admin, "admin:A");
+        BOOST_REQUIRE_EQUAL(data.admin_stop_areas[0]->stop_area.size(), 1);
+        BOOST_CHECK_EQUAL(data.admin_stop_areas[0]->stop_area[0]->name, "Brunoy-Wittlich");
+        BOOST_CHECK_EQUAL(data.admin_stop_areas[0]->stop_area[0]->uri, "SCF:SP:SPOCENoctilien87976902");
+    }
+
+    // For retrocompatibity
+    // admin_stations.txt file contains only "station_id"
+    // TODO : to remove after the data team update, it will become useless (NAVP-1285)
+    {
+        ed::Data data;
+        ed::connectors::FusioParser parser(ntfs_path + "_v5");
+        parser.fill(data);
+        BOOST_REQUIRE_EQUAL(data.admin_stop_areas.size(), 1);
+        BOOST_CHECK_EQUAL(data.admin_stop_areas[0]->admin, "admin:A");
+        BOOST_REQUIRE_EQUAL(data.admin_stop_areas[0]->stop_area.size(), 1);
+        BOOST_CHECK_EQUAL(data.admin_stop_areas[0]->stop_area[0]->name, "Arrêt A");
+        BOOST_CHECK_EQUAL(data.admin_stop_areas[0]->stop_area[0]->uri, "SA:A");
+    }
 }

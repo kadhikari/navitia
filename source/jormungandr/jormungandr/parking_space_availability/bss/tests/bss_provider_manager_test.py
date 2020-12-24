@@ -27,23 +27,22 @@
 # IRC #navitia on freenode
 # https://groups.google.com/d/forum/navitia
 # www.navitia.io
+
 from __future__ import absolute_import, print_function, unicode_literals, division
 import pytest
 from jormungandr.parking_space_availability.bss.bss_provider_manager import BssProviderManager
-from jormungandr import app
+from navitiacommon.models import BssProvider
 
-CONFIG = ([
-    {
-        'class': 'jormungandr.parking_space_availability.bss.tests.BssMockProvider'
-    }
-])
+CONFIG = [{'class': 'jormungandr.parking_space_availability.bss.tests.BssMockProvider'}]
+
 
 def realtime_place_creation_test():
     """
     simple bss provider creation
     """
     manager = BssProviderManager(CONFIG)
-    assert len(manager.bss_providers) == 1
+    assert len(manager.get_providers()) == 1
+
 
 def realtime_place_bad_creation_test():
     """
@@ -51,14 +50,13 @@ def realtime_place_bad_creation_test():
     """
 
     with pytest.raises(Exception):
-        manager = BssProviderManager((
-            {
-                'class': 'jormungandr.parking_space_availability.bss.tests.BssMockProvider'
-            },
-            {
-                'class': 'jormungandr.parking_space_availability.bss.BadProvider'
-            }
-        ))
+        manager = BssProviderManager(
+            (
+                {'class': 'jormungandr.parking_space_availability.bss.tests.BssMockProvider'},
+                {'class': 'jormungandr.parking_space_availability.bss.BadProvider'},
+            )
+        )
+
 
 def realtime_places_handle_test():
     """
@@ -70,14 +68,11 @@ def realtime_places_handle_test():
             'distance': '0',
             'name': 'Cit\u00e9 Universitaire (Laval)',
             'poi': {
-                'poi_type': {
-                    'name': 'station vls',
-                    'id': 'poi_type:amenity:bicycle_rental'
-                },
-                'id': 'station_1'
+                'poi_type': {'name': 'station vls', 'id': 'poi_type:amenity:bicycle_rental'},
+                'id': 'station_1',
             },
             'quality': 0,
-            'id': 'poi:n3762373698'
+            'id': 'poi:n3762373698',
         }
     ]
     manager = BssProviderManager(CONFIG)
@@ -98,15 +93,7 @@ def realtime_pois_handle_test():
     """
     test correct handle pois include bss stands
     """
-    pois = [
-        {
-            'poi_type': {
-                'name': 'station vls',
-                'id': 'poi_type:amenity:bicycle_rental'
-            },
-            'id': 'station_1'
-        }
-    ]
+    pois = [{'poi_type': {'name': 'station vls', 'id': 'poi_type:amenity:bicycle_rental'}, 'id': 'station_1'}]
     manager = BssProviderManager(CONFIG)
     manager.handle_places(pois)
     assert 'stands' in pois[0]
@@ -121,13 +108,7 @@ def realtime_poi_supported_handle_test():
     """
     test correct handle pois include bss stands
     """
-    poi = {
-        'poi_type': {
-            'name': 'station vls',
-            'id': 'poi_type:amenity:bicycle_rental'
-        },
-        'id': 'station_1'
-    }
+    poi = {'poi_type': {'name': 'station vls', 'id': 'poi_type:amenity:bicycle_rental'}, 'id': 'station_1'}
     manager = BssProviderManager(CONFIG)
     manager._handle_poi(poi)
     assert 'stands' in poi
@@ -142,13 +123,7 @@ def realtime_poi_not_supported_handle_test():
     """
     test correct handle pois include bss stands
     """
-    poi = {
-        'poi_type': {
-            'name': 'station vls',
-            'id': 'poi_type:amenity:bicycle_rental'
-        },
-        'id': 'station_2'
-    }
+    poi = {'poi_type': {'name': 'station vls', 'id': 'poi_type:amenity:bicycle_rental'}, 'id': 'station_2'}
     manager = BssProviderManager(CONFIG)
     manager._handle_poi(poi)
     assert 'stands' not in poi
@@ -158,16 +133,10 @@ def realtime_place_find_provider_test():
     """
     test manager return provider
     """
-    poi = {
-        'poi_type': {
-            'name': 'station vls',
-            'id': 'poi_type:amenity:bicycle_rental'
-        },
-        'id': 'station_1'
-    }
+    poi = {'poi_type': {'name': 'station vls', 'id': 'poi_type:amenity:bicycle_rental'}, 'id': 'station_1'}
     manager = BssProviderManager(CONFIG)
     provider = manager._find_provider(poi)
-    assert provider == manager.bss_providers[0]
+    assert provider == manager.get_providers()[0]
 
 
 def realtime_journey_handle_test():
@@ -180,24 +149,14 @@ def realtime_journey_handle_test():
                 {
                     'from': {
                         'embedded_type': 'poi',
-                        'poi': {
-                            'id': 'station_1',
-                            'poi_type': {
-                                'id': 'poi_type:amenity:bicycle_rental'
-                            }
-                        },
-                        'id': 'station_1'
+                        'poi': {'id': 'station_1', 'poi_type': {'id': 'poi_type:amenity:bicycle_rental'}},
+                        'id': 'station_1',
                     },
                     'to': {
                         'embedded_type': 'poi',
-                        'poi': {
-                            'id': 'station_1',
-                            'poi_type': {
-                                'id': 'poi_type:amenity:bicycle_rental'
-                            }
-                        },
-                        'id': 'station_1'
-                    }
+                        'poi': {'id': 'station_1', 'poi_type': {'id': 'poi_type:amenity:bicycle_rental'}},
+                        'id': 'station_1',
+                    },
                 }
             ]
         }
@@ -217,3 +176,95 @@ def realtime_journey_handle_test():
     assert journey_to['poi']['stands'].available_bikes == 9
     assert journey_to['poi']['stands'].total_stands == 14
     assert journey_to['poi']['stands'].status == 'open'
+
+
+def provider_getter_ok():
+    c = BssProvider('foo')
+    c.network = 'foo'
+    c.klass = 'jormungandr.parking_space_availability.bss.tests.BssMockProvider'
+    return [c]
+
+
+def provider_getter_two():
+    c = BssProvider('foo')
+    c.network = 'foo'
+    c.klass = 'jormungandr.parking_space_availability.bss.tests.BssMockProvider'
+
+    c2 = BssProvider('bar')
+    c2.network = 'bar'
+    c2.klass = 'jormungandr.parking_space_availability.bss.tests.BssMockProvider'
+    return [c, c2]
+
+
+def provider_getter_empty():
+    return []
+
+
+def provider_getter_invalid():
+    c = BssProvider('foo')
+    c.network = 'foo'
+    c.klass = 'jormungandr.parking_space_availability.bss.tests.BssMockProviderThatDontExist'
+    return [c]
+
+
+def provider_getter_raise():
+    raise Exception('failure')
+
+
+def bss_provider_manager_from_db_test():
+    manager = BssProviderManager([], provider_getter_ok, -1)
+    assert len(manager.get_providers()) == 1
+    assert manager.get_providers()[0].network == 'foo'
+
+    # Error are ignored
+    manager = BssProviderManager([], provider_getter_raise, -1)
+    assert len(manager.get_providers()) == 0
+
+    manager = BssProviderManager([], provider_getter_invalid, -1)
+    assert len(manager.get_providers()) == 0
+
+
+def bss_provider_manager_from_db_and_config_test():
+    manager = BssProviderManager(CONFIG, provider_getter_ok, -1)
+    assert len(manager.get_providers()) == 2
+
+    # error are ignored and we still return the static configuration
+    manager = BssProviderManager(CONFIG, provider_getter_raise, -1)
+    assert len(manager.get_providers()) == 1
+
+    manager = BssProviderManager(CONFIG, provider_getter_invalid, -1)
+    assert len(manager.get_providers()) == 1
+
+
+def bss_provider_manager_disable_all_test():
+    manager = BssProviderManager([], provider_getter_ok, -1)
+    assert len(manager.get_providers()) == 1
+
+    # lets change the getter used to obtain the configuration
+    manager._providers_getter = provider_getter_empty
+    assert len(manager.get_providers()) == 0
+
+
+def bss_provider_manager_disable_one_test():
+    manager = BssProviderManager([], provider_getter_two, -1)
+    assert len(manager.get_providers()) == 2
+
+    # lets change the getter used to obtain the configuration
+    manager._providers_getter = provider_getter_ok
+    assert len(manager.get_providers()) == 1
+    assert manager.get_providers()[0].network == 'foo'
+
+
+def realtime_pois_handle_from_db_test():
+    """
+    test correct handle pois include bss stands
+    """
+    pois = [{'poi_type': {'name': 'station vls', 'id': 'poi_type:amenity:bicycle_rental'}, 'id': 'station_1'}]
+    manager = BssProviderManager([], provider_getter_ok)
+    manager.handle_places(pois)
+    assert 'stands' in pois[0]
+    stands = pois[0]['stands']
+    assert stands.available_places == 5
+    assert stands.available_bikes == 9
+    assert stands.total_stands == 14
+    assert stands.status == 'open'

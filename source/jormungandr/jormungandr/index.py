@@ -28,7 +28,7 @@
 # www.navitia.io
 
 from __future__ import absolute_import, print_function, unicode_literals, division
-from flask.ext.restful import Resource
+from flask_restful import Resource
 from jormungandr.modules_loader import ModulesLoader
 from jormungandr.interfaces.v1.make_links import create_external_link
 
@@ -46,13 +46,8 @@ class Index(Resource):
                 'description': module.description,
                 'status': module.status,
                 'links': [
-                    create_external_link(
-                        module_name + '.' + module.index_endpoint,
-                        rel='api',
-                        _type='api')
-                ]
+                    create_external_link(module_name + '.' + module.index_endpoint, rel='api', _type='api')
+                ],
             }
             resp['versions'].append(mod)
         return resp
-
-
